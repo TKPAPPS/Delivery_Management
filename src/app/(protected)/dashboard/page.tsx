@@ -57,11 +57,11 @@ export default async function DashboardPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
-        <StatCard title="Draft" value={counts.draft} icon={LayoutDashboard} color="gray" />
-        <StatCard title="Driver Needed" value={counts.driver_needed} icon={AlertTriangle} color="amber" />
-        <StatCard title="Driver Booked" value={counts.driver_booked} icon={Truck} color="blue" />
-        <StatCard title="Loaded" value={counts.loaded} icon={CheckSquare} color="green" />
-        <StatCard title="Urgent" value={counts.urgent} icon={AlertTriangle} color="red" />
+        <StatCard title="Draft" value={counts.draft} icon={LayoutDashboard} color="gray" href="/board" />
+        <StatCard title="Driver Needed" value={counts.driver_needed} icon={AlertTriangle} color="amber" href="/board" />
+        <StatCard title="Driver Booked" value={counts.driver_booked} icon={Truck} color="blue" href="/board" />
+        <StatCard title="Loaded" value={counts.loaded} icon={CheckSquare} color="green" href="/board" />
+        <StatCard title="Urgent" value={counts.urgent} icon={AlertTriangle} color="red" href="/board" />
       </div>
 
       {/* Main grid */}

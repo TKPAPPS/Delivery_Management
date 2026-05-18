@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils';
 import { LucideIcon } from 'lucide-react';
+import Link from 'next/link';
 
 interface StatCardProps {
   title: string;
@@ -7,9 +8,10 @@ interface StatCardProps {
   icon: LucideIcon;
   color?: 'blue' | 'amber' | 'green' | 'red' | 'gray';
   subtitle?: string;
+  href?: string;
 }
 
-export default function StatCard({ title, value, icon: Icon, color = 'blue', subtitle }: StatCardProps) {
+export default function StatCard({ title, value, icon: Icon, color = 'blue', subtitle, href }: StatCardProps) {
   const colors = {
     blue: {
       bg: 'bg-blue-50',
@@ -40,8 +42,8 @@ export default function StatCard({ title, value, icon: Icon, color = 'blue', sub
 
   const c = colors[color];
 
-  return (
-    <div className={cn('bg-white rounded-xl border border-slate-200 border-l-4 p-5', c.border)}>
+  const inner = (
+    <>
       <div className="flex items-center justify-between mb-3">
         <p className="text-sm text-slate-500 font-medium">{title}</p>
         <div className={cn('p-2 rounded-lg', c.bg)}>
@@ -50,6 +52,20 @@ export default function StatCard({ title, value, icon: Icon, color = 'blue', sub
       </div>
       <p className="text-3xl font-bold text-slate-900">{value}</p>
       {subtitle && <p className="text-xs text-slate-500 mt-1">{subtitle}</p>}
+    </>
+  );
+
+  if (href) {
+    return (
+      <Link href={href} className={cn('block bg-white rounded-xl border border-slate-200 border-l-4 p-5 hover:shadow-md transition-shadow', c.border)}>
+        {inner}
+      </Link>
+    );
+  }
+
+  return (
+    <div className={cn('bg-white rounded-xl border border-slate-200 border-l-4 p-5', c.border)}>
+      {inner}
     </div>
   );
 }
