@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Textarea from '@/components/ui/Textarea';
+import CustomerPicker from '@/components/cards/CustomerPicker';
 import { Plus, X, Trash2 } from 'lucide-react';
 import { useToastStore } from '@/store/toastStore';
 
@@ -57,15 +58,11 @@ export default function AddCustomerForm({ cardId, onAdded, onCancel }: AddCustom
           <X className="w-4 h-4" />
         </button>
       </div>
-      <Input
-        placeholder="Customer name *"
-        value={form.customer_name}
-        onChange={(e) => setForm((f) => ({ ...f, customer_name: e.target.value }))}
-      />
-      <Input
-        placeholder="Delivery location"
-        value={form.delivery_location}
-        onChange={(e) => setForm((f) => ({ ...f, delivery_location: e.target.value }))}
+      <CustomerPicker
+        name={form.customer_name}
+        deliveryLocation={form.delivery_location}
+        onChangeName={(v) => setForm((f) => ({ ...f, customer_name: v }))}
+        onChangeDeliveryLocation={(v) => setForm((f) => ({ ...f, delivery_location: v }))}
       />
       <Textarea
         placeholder="Notes"

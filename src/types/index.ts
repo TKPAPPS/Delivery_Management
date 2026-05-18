@@ -13,6 +13,18 @@ export interface Profile {
   updated_at: string;
 }
 
+export interface CustomerDirectory {
+  id: string;
+  name: string;
+  contact_number: string | null;
+  full_address: string | null;
+  default_delivery_location: string | null;
+  notes: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Driver {
   id: string;
   name: string;

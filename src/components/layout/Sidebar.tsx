@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Columns, Archive, Users, Truck, ClipboardList } from 'lucide-react';
+import { LayoutDashboard, Columns, Archive, Users, Truck, ClipboardList, BookUser } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SidebarProps {
@@ -17,6 +17,7 @@ const mainNav = [
 
 const adminNav = [
   { href: '/admin/users', label: 'Users', icon: Users },
+  { href: '/admin/customers', label: 'Customers', icon: BookUser },
   { href: '/admin/drivers', label: 'Drivers', icon: Truck },
 ];
 
@@ -55,7 +56,10 @@ export default function Sidebar({ role }: SidebarProps) {
             <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider px-4 mb-1">Admin</p>
             <div className="space-y-0.5">
               {adminNav
-                .filter((item) => item.href !== '/admin/users' || role === 'admin')
+                .filter((item) => {
+                  if (item.href === '/admin/users') return role === 'admin';
+                  return true;
+                })
                 .map((item) => <NavItem key={item.href} {...item} />)}
             </div>
           </div>

@@ -7,6 +7,7 @@ import Input from '@/components/ui/Input';
 import Textarea from '@/components/ui/Textarea';
 import Select from '@/components/ui/Select';
 import DatePicker from '@/components/ui/DatePicker';
+import CustomerPicker from '@/components/cards/CustomerPicker';
 import { useToastStore } from '@/store/toastStore';
 import { Plus, Trash2 } from 'lucide-react';
 
@@ -166,15 +167,11 @@ export default function CreateCardModal({ open, onClose, onCreated }: CreateCard
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
-              <Input
-                placeholder="Customer name *"
-                value={cust.customer_name}
-                onChange={(e) => updateCustomer(ci, 'customer_name', e.target.value)}
-              />
-              <Input
-                placeholder="Delivery location"
-                value={cust.delivery_location}
-                onChange={(e) => updateCustomer(ci, 'delivery_location', e.target.value)}
+              <CustomerPicker
+                name={cust.customer_name}
+                deliveryLocation={cust.delivery_location}
+                onChangeName={(v) => updateCustomer(ci, 'customer_name', v)}
+                onChangeDeliveryLocation={(v) => updateCustomer(ci, 'delivery_location', v)}
               />
               <div className="space-y-1">
                 <p className="text-xs text-slate-500">Sale Orders</p>
