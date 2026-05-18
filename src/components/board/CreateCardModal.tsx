@@ -22,17 +22,16 @@ interface CreateCardModalProps {
   onCreated: () => void;
 }
 
+const EMPTY_FORM = { destination: '', status: 'draft', planned_date: '', priority: 'normal', internal_notes: '' };
+
 export default function CreateCardModal({ open, onClose, onCreated }: CreateCardModalProps) {
   const addToast = useToastStore((s) => s.addToast);
   const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({
-    destination: '',
-    status: 'draft',
-    planned_date: '',
-    priority: 'normal',
-    internal_notes: '',
-  });
+  const [form, setForm] = useState(EMPTY_FORM);
   const [customers, setCustomers] = useState<InlineCustomer[]>([]);
+
+  const reset = () => { setForm(EMPTY_FORM); setCustomers([]); };
+  const handleClose = () => { reset(); onClose(); };
 
   const addCustomer = () => {
     setCustomers((prev) => [
@@ -97,9 +96,7 @@ export default function CreateCardModal({ open, onClose, onCreated }: CreateCard
       }
       addToast('Delivery card created', 'success');
       onCreated();
-      onClose();
-      setForm({ destination: '', status: 'draft', planned_date: '', priority: 'normal', internal_notes: '' });
-      setCustomers([]);
+      handleClose();
     } catch (err) {
       addToast(err instanceof Error ? err.message : 'Error creating card', 'error');
     } finally {
@@ -108,7 +105,7 @@ export default function CreateCardModal({ open, onClose, onCreated }: CreateCard
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="New Delivery Card" size="lg">
+    <Modal open={open} onClose={handleClose} title="New Delivery Card" size="lg">
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input
           label="Destination *"
@@ -209,7 +206,7 @@ export default function CreateCardModal({ open, onClose, onCreated }: CreateCard
         </div>
 
         <div className="flex gap-3 justify-end pt-2">
-          <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>
+          <Button type="button" variant="secondary" onClick={handleClose} disabled={loading}>
             Cancel
           </Button>
           <Button type="submit" loading={loading}>
