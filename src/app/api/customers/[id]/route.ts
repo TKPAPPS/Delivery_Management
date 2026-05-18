@@ -1,0 +1,145 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { createSupabaseServerClient, createSupabaseAdminClient } from '@/lib/supabase-server';
+import { logActivity, ACTIONS } from '@/lib/activity';
+
+export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const supabase = createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { data: profile } = await supabase.from('profiles').select('active').eq('id', user.id).single();
+  if (!profile?.active) return NextResponse.json({ error: 'Account not active' }, { status: 403 });
+
+  const body = await req.json();
+  const admin = createSupabaseAdminClient();
+
+  // Get customer for context
+  const { data: customer } = await admin
+    .from('delivery_customers')
+    .select('*, sale_orders:customer_sale_orders(*), extra_items:extra_delivery_items(*)')
+    .eq('id', params.id)
+    .single();
+
+  if (!customer) return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
+
+  // Handle unload action
+  if (body.unload) {
+    const { action, target_card_id, new_destination, notes, reason } = body;
+
+    if (action === 'move' && target_card_id) {
+      // Move customer to another card
+      const { error } = await admin
+        .from('delivery_customers')
+        .update({ delivery_card_id: target_card_id, notes: notes || customer.notes })
+        .eq('id', params.id);
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+      await logActivity(customer.delivery_card_id, user.id, ACTIONS.CUSTOMER_MOVED, {
+        customer_name: customer.customer_name,
+        target_card_id,
+      });
+
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === 'create_card' && new_destination) {
+      // Create a new card and move customer there
+      const { data: newCard, error: cardError } = await admin
+        .from('delivery_cards')
+        .insert({
+          destination: new_destination,
+          status: 'draft',
+          priority: 'normal',
+          created_by: user.id,
+        })
+        .select()
+        .single();
+
+      if (cardError || !newCard) return NextResponse.json({ error: 'Failed to create card' }, { status: 500 });
+
+      await admin
+        .from('delivery_customers')
+        .update({ delivery_card_id: newCard.id })
+        .eq('id', params.id);
+
+      await logActivity(customer.delivery_card_id, user.id, ACTIONS.CUSTOMER_MOVED, {
+        customer_name: customer.customer_name,
+        new_card_id: newCard.id,
+      });
+
+      return NextResponse.json({ success: true, newCardId: newCard.id });
+    }
+
+    // Default: move to planning queue
+    await admin.from('planning_queue').insert({
+      customer_name: customer.customer_name,
+      delivery_location: customer.delivery_location,
+      sale_order_refs: (customer.sale_orders as Array<{ sale_order_number: string }>).map((so) => so.sale_order_number),
+      extra_items: (customer.extra_items as Array<{ item_name: string; quantity: string | null }>).map((i) => ({
+        item_name: i.item_name,
+        quantity: i.quantity,
+      })),
+      notes: notes || customer.notes,
+      reason: reason ?? null,
+      created_by: user.id,
+    });
+
+    // Remove from delivery card
+    await admin.from('delivery_customers').delete().eq('id', params.id);
+
+    await logActivity(customer.delivery_card_id, user.id, ACTIONS.CUSTOMER_UNLOADED, {
+      customer_name: customer.customer_name,
+      reason,
+    });
+
+    return NextResponse.json({ success: true });
+  }
+
+  // Regular update
+  const updateData: Record<string, unknown> = {};
+  const allowedFields = ['customer_name', 'delivery_location', 'notes', 'partial_shipment', 'partial_shipment_note', 'sort_order'];
+  for (const field of allowedFields) {
+    if (body[field] !== undefined) updateData[field] = body[field];
+  }
+
+  const { data: updated, error } = await admin
+    .from('delivery_customers')
+    .update(updateData)
+    .eq('id', params.id)
+    .select()
+    .single();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  if (body.partial_shipment) {
+    await logActivity(customer.delivery_card_id, user.id, ACTIONS.PARTIAL_SHIPMENT_MARKED, {
+      customer_name: customer.customer_name,
+    });
+  }
+
+  return NextResponse.json({ customer: updated });
+}
+
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  const supabase = createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { data: profile } = await supabase.from('profiles').select('active').eq('id', user.id).single();
+  if (!profile?.active) return NextResponse.json({ error: 'Account not active' }, { status: 403 });
+
+  const admin = createSupabaseAdminClient();
+
+  const { data: customer } = await admin.from('delivery_customers').select('*').eq('id', params.id).single();
+  if (!customer) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+  const { error } = await admin.from('delivery_customers').delete().eq('id', params.id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  await logActivity(customer.delivery_card_id, user.id, ACTIONS.CUSTOMER_REMOVED, {
+    customer_name: customer.customer_name,
+  });
+
+  return NextResponse.json({ success: true });
+}
