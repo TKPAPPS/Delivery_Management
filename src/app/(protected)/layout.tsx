@@ -27,5 +27,15 @@ export default async function ProtectedLayout({
     redirect('/pending');
   }
 
-  return <AppShell profile={profile as Profile}>{children}</AppShell>;
+  const p = profile as Profile;
+
+  return (
+    <AppShell
+      userEmail={p.email}
+      userName={p.name ?? undefined}
+      role={p.role}
+    >
+      {children}
+    </AppShell>
+  );
 }

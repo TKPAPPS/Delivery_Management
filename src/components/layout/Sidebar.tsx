@@ -1,116 +1,65 @@
 'use client';
-
-import { cn } from '@/lib/utils';
-import {
-  LayoutDashboard,
-  Kanban,
-  Archive,
-  Users,
-  Truck,
-  List,
-  LogOut,
-} from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import type { Profile } from '@/types';
-import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
-import { useRouter } from 'next/navigation';
+import { LayoutDashboard, Columns, Archive, Users, Truck } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface SidebarProps {
-  profile: Profile | null;
-  mobile?: boolean;
-  onClose?: () => void;
+  role?: string;
 }
 
-const navItems = [
-  { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/board', icon: Kanban, label: 'Board' },
-  { href: '/archive', icon: Archive, label: 'Archive' },
+const mainNav = [
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/board', label: 'Board', icon: Columns },
+  { href: '/archive', label: 'Archive', icon: Archive },
 ];
 
-const adminItems = [
-  { href: '/admin/users', icon: Users, label: 'Users', roles: ['admin'] },
-  { href: '/admin/drivers', icon: Truck, label: 'Drivers', roles: ['admin', 'logistics'] },
+const adminNav = [
+  { href: '/admin/users', label: 'Users', icon: Users },
+  { href: '/admin/drivers', label: 'Drivers', icon: Truck },
 ];
 
-export default function Sidebar({ profile, mobile, onClose }: SidebarProps) {
+export default function Sidebar({ role }: SidebarProps) {
   const pathname = usePathname();
-  const router = useRouter();
 
-  const handleSignOut = async () => {
-    const supabase = createSupabaseBrowserClient();
-    await supabase.auth.signOut();
-    router.push('/login');
+  const NavItem = ({ href, label, icon: Icon }: { href: string; label: string; icon: React.ElementType }) => {
+    const active = pathname === href || pathname.startsWith(href + '/');
+    return (
+      <Link
+        href={href}
+        className={cn(
+          'flex items-center gap-3 px-4 py-2.5 text-sm rounded-r-none transition-colors',
+          active
+            ? 'bg-crimson-50 text-crimson-700 border-r-2 border-crimson-700 font-semibold'
+            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-lg mx-2'
+        )}
+      >
+        <Icon className={cn('w-4 h-4', active ? 'text-crimson-700' : 'text-slate-400')} />
+        {label}
+      </Link>
+    );
   };
 
-  const visibleAdminItems = adminItems.filter(
-    (item) => profile && item.roles.includes(profile.role)
-  );
-
   return (
-    <nav
-      className={cn(
-        'flex flex-col bg-slate-900 text-slate-300 h-full',
-        mobile ? 'w-64' : 'w-56'
-      )}
-    >
-      <div className="flex-1 py-4 overflow-y-auto">
-        <div className="px-3 mb-6">
-          <p className="text-xs uppercase tracking-wider text-slate-500 font-medium px-3 mb-2">
-            Main
-          </p>
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onClose}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors mb-0.5',
-                pathname === item.href || pathname.startsWith(item.href + '/')
-                  ? 'bg-slate-700 text-white'
-                  : 'hover:bg-slate-800 hover:text-white'
-              )}
-            >
-              <item.icon className="w-4 h-4 flex-shrink-0" />
-              {item.label}
-            </Link>
-          ))}
+    <aside className="w-56 bg-white border-r border-slate-200 flex-shrink-0 flex flex-col py-4 overflow-y-auto">
+      <nav className="flex-1">
+        <div className="mb-4">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 mb-1">Operations</p>
+          <div className="space-y-0.5">
+            {mainNav.map((item) => <NavItem key={item.href} {...item} />)}
+          </div>
         </div>
-
-        {visibleAdminItems.length > 0 && (
-          <div className="px-3 mb-6">
-            <p className="text-xs uppercase tracking-wider text-slate-500 font-medium px-3 mb-2">
-              Admin
-            </p>
-            {visibleAdminItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={onClose}
-                className={cn(
-                  'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors mb-0.5',
-                  pathname.startsWith(item.href)
-                    ? 'bg-slate-700 text-white'
-                    : 'hover:bg-slate-800 hover:text-white'
-                )}
-              >
-                <item.icon className="w-4 h-4 flex-shrink-0" />
-                {item.label}
-              </Link>
-            ))}
+        {(role === 'admin' || role === 'logistics') && (
+          <div>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 mb-1">Admin</p>
+            <div className="space-y-0.5">
+              {adminNav
+                .filter((item) => item.href !== '/admin/users' || role === 'admin')
+                .map((item) => <NavItem key={item.href} {...item} />)}
+            </div>
           </div>
         )}
-      </div>
-
-      <div className="border-t border-slate-700 p-3">
-        <button
-          onClick={handleSignOut}
-          className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium w-full hover:bg-slate-800 hover:text-white transition-colors"
-        >
-          <LogOut className="w-4 h-4 flex-shrink-0" />
-          Sign out
-        </button>
-      </div>
-    </nav>
+      </nav>
+    </aside>
   );
 }

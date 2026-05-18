@@ -1,46 +1,56 @@
 'use client';
-
-import { cn } from '@/lib/utils';
-import { Menu, Truck, Bell } from 'lucide-react';
 import Link from 'next/link';
-import type { Profile } from '@/types';
+import { LogOut, User } from 'lucide-react';
+import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 interface NavbarProps {
-  profile: Profile | null;
-  onMenuClick?: () => void;
+  userEmail?: string;
+  userName?: string;
 }
 
-export default function Navbar({ profile, onMenuClick }: NavbarProps) {
+export default function Navbar({ userEmail, userName }: NavbarProps) {
+  const router = useRouter();
+  const [logoError, setLogoError] = useState(false);
+
+  const handleSignOut = async () => {
+    const supabase = createSupabaseBrowserClient();
+    await supabase.auth.signOut();
+    router.push('/login');
+  };
+
   return (
-    <header className="h-14 bg-white border-b border-slate-200 flex items-center px-4 gap-4 flex-shrink-0">
-      <button
-        className="lg:hidden text-slate-500 hover:text-slate-700 p-1"
-        onClick={onMenuClick}
-      >
-        <Menu className="w-5 h-5" />
-      </button>
-      <Link href="/dashboard" className="flex items-center gap-2 text-slate-900 font-semibold">
-        <div className="bg-blue-600 text-white rounded-lg p-1">
-          <Truck className="w-4 h-4" />
-        </div>
-        <span className="hidden sm:block">Delivery Board</span>
-      </Link>
-      <div className="flex-1" />
-      <div className="flex items-center gap-3">
-        <Bell className="w-5 h-5 text-slate-400" />
-        {profile && (
-          <div className="flex items-center gap-2">
-            <div className={cn(
-              'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold',
-              'bg-blue-600 text-white'
-            )}>
-              {(profile.name ?? profile.email).charAt(0).toUpperCase()}
-            </div>
-            <span className="hidden md:block text-sm text-slate-700">
-              {profile.name ?? profile.email}
-            </span>
-          </div>
+    <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 flex-shrink-0 z-40">
+      <Link href="/dashboard" className="flex items-center">
+        {!logoError ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src="/logo.png"
+            alt="The Kosher Place Delivery"
+            className="h-10 w-auto"
+            onError={() => setLogoError(true)}
+          />
+        ) : (
+          <span className="text-xl font-bold" style={{ color: '#7d1535' }}>
+            TKP <span style={{ color: '#c4963a' }}>Delivery</span>
+          </span>
         )}
+      </Link>
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 text-sm text-slate-600">
+          <div className="w-7 h-7 rounded-full bg-crimson-100 flex items-center justify-center">
+            <User className="w-4 h-4 text-crimson-700" />
+          </div>
+          <span className="hidden sm:block">{userName || userEmail}</span>
+        </div>
+        <button
+          onClick={handleSignOut}
+          className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-crimson-700 transition-colors px-3 py-1.5 rounded-lg hover:bg-crimson-50"
+        >
+          <LogOut className="w-4 h-4" />
+          <span className="hidden sm:block">Sign out</span>
+        </button>
       </div>
     </header>
   );

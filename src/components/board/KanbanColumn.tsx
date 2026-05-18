@@ -1,7 +1,7 @@
 'use client';
 
 import { Droppable, Draggable } from '@hello-pangea/dnd';
-import { cn, statusColor, statusLabel } from '@/lib/utils';
+import { cn, statusLabel } from '@/lib/utils';
 import type { DeliveryCardWithCustomers, DeliveryStatus } from '@/types';
 import DeliveryCardPreview from './DeliveryCardPreview';
 
@@ -11,19 +11,40 @@ interface KanbanColumnProps {
 }
 
 export default function KanbanColumn({ status, cards }: KanbanColumnProps) {
-  const colorClasses: Record<DeliveryStatus, string> = {
-    draft: 'bg-slate-50 border-slate-200',
-    driver_needed: 'bg-amber-50 border-amber-200',
-    driver_booked: 'bg-blue-50 border-blue-200',
-    loaded: 'bg-green-50 border-green-200',
+  const columnStyles: Record<DeliveryStatus, { container: string; badge: string }> = {
+    draft: {
+      container: 'bg-slate-50/50 border-slate-200',
+      badge: 'bg-slate-100 text-slate-600',
+    },
+    driver_needed: {
+      container: 'bg-gold-50/50 border-gold-200',
+      badge: 'bg-gold-100 text-gold-700',
+    },
+    driver_booked: {
+      container: 'bg-crimson-50/50 border-crimson-200',
+      badge: 'bg-crimson-100 text-crimson-700',
+    },
+    loaded: {
+      container: 'bg-emerald-50/50 border-emerald-200',
+      badge: 'bg-emerald-100 text-emerald-700',
+    },
   };
 
+  const headerTextColors: Record<DeliveryStatus, string> = {
+    draft: 'text-slate-600',
+    driver_needed: 'text-gold-700',
+    driver_booked: 'text-crimson-700',
+    loaded: 'text-emerald-700',
+  };
+
+  const styles = columnStyles[status];
+
   return (
-    <div className={cn('flex flex-col rounded-xl border min-w-[280px] w-72', colorClasses[status])}>
+    <div className={cn('flex flex-col rounded-xl border min-w-[280px] w-72', styles.container)}>
       <div className="p-3 border-b border-inherit">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-sm text-slate-700">{statusLabel(status)}</h3>
-          <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', statusColor(status))}>
+          <h3 className={cn('font-bold text-sm', headerTextColors[status])}>{statusLabel(status)}</h3>
+          <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', styles.badge)}>
             {cards.length}
           </span>
         </div>
@@ -35,7 +56,7 @@ export default function KanbanColumn({ status, cards }: KanbanColumnProps) {
             {...provided.droppableProps}
             className={cn(
               'flex-1 p-3 space-y-2 min-h-[200px] transition-colors',
-              snapshot.isDraggingOver && 'bg-blue-50/50'
+              snapshot.isDraggingOver && 'bg-crimson-50/30'
             )}
           >
             {cards.map((card, index) => (

@@ -13,7 +13,8 @@ export default async function ArchivePage({ searchParams }: PageProps) {
   const supabase = createSupabaseServerClient();
   const q = searchParams.q ?? '';
 
-  let query = supabase
+  // Fetch ALL archived with customers for JS-side filtering
+  const { data: cards } = await supabase
     .from('delivery_cards')
     .select(`
       *,
@@ -23,15 +24,26 @@ export default async function ArchivePage({ searchParams }: PageProps) {
       )
     `)
     .eq('is_archived', true)
-    .order('archived_at', { ascending: false });
+    .order('archived_at', { ascending: false })
+    .limit(200);
 
-  if (q) {
-    query = query.or(
-      `destination.ilike.%${q}%,delivery_ref.ilike.%${q}%`
-    );
-  }
-
-  const { data: cards } = await query.limit(100);
+  // Filter in JS to support customer name + SO number search
+  const filtered = q
+    ? (cards ?? []).filter((card) => {
+        const qLower = q.toLowerCase();
+        const matchCard =
+          card.destination?.toLowerCase().includes(qLower) ||
+          card.delivery_ref?.toLowerCase().includes(qLower);
+        const customers = card.customers as Array<{ customer_name: string; sale_orders: Array<{ sale_order_number: string }> }>;
+        const matchCustomer = customers.some((c) =>
+          c.customer_name?.toLowerCase().includes(qLower)
+        );
+        const matchSO = customers.some((c) =>
+          c.sale_orders.some((so) => so.sale_order_number?.toLowerCase().includes(qLower))
+        );
+        return matchCard || matchCustomer || matchSO;
+      })
+    : (cards ?? []);
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -47,32 +59,32 @@ export default async function ArchivePage({ searchParams }: PageProps) {
           <input
             name="q"
             defaultValue={q}
-            placeholder="Search by destination, ref, customer, SO..."
-            className="w-full pl-9 pr-4 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            placeholder="Search destination, ref, customer, SO number..."
+            className="w-full pl-9 pr-4 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-crimson-500 bg-white"
           />
         </form>
       </div>
 
-      {(cards ?? []).length === 0 ? (
+      {filtered.length === 0 ? (
         <div className="text-center py-16 text-slate-400">
           <Archive className="w-12 h-12 mx-auto mb-3 opacity-40" />
           <p className="text-sm font-medium">{q ? 'No archived cards matching your search' : 'No archived cards yet'}</p>
         </div>
       ) : (
         <div className="space-y-3">
-          {(cards ?? []).map((card) => {
+          {filtered.map((card) => {
             const customerNames = (card.customers as Array<{ customer_name: string; sale_orders: Array<{ sale_order_number: string }> }>).map((c) => c.customer_name);
             const allSOs = (card.customers as Array<{ customer_name: string; sale_orders: Array<{ sale_order_number: string }> }>).flatMap((c) => c.sale_orders.map((so) => so.sale_order_number));
             return (
               <Link
                 key={card.id}
                 href={`/cards/${card.id}`}
-                className="block bg-white border border-slate-200 rounded-xl p-4 hover:border-blue-300 transition-colors"
+                className="block bg-white border border-slate-200 rounded-xl p-4 hover:border-crimson-300 transition-colors"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="font-mono text-xs text-slate-400">{card.delivery_ref}</span>
+                      <span className="font-mono text-xs text-crimson-700">{card.delivery_ref}</span>
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusColor(card.status)}`}>
                         {statusLabel(card.status)}
                       </span>

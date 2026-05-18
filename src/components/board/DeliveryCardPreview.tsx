@@ -1,6 +1,6 @@
-import { cn, formatDate, statusColor, statusLabel } from '@/lib/utils';
+import { cn, formatDate } from '@/lib/utils';
 import type { DeliveryCardWithCustomers } from '@/types';
-import { MessageSquare, Paperclip, User, AlertTriangle, PackageOpen } from 'lucide-react';
+import { MessageSquare, Paperclip, Truck, AlertTriangle, PackageOpen } from 'lucide-react';
 import Link from 'next/link';
 
 interface DeliveryCardPreviewProps {
@@ -18,16 +18,16 @@ export default function DeliveryCardPreview({ card, dragging }: DeliveryCardPrev
     <Link href={`/cards/${card.id}`}>
       <div
         className={cn(
-          'bg-white rounded-lg border border-slate-200 p-3 cursor-pointer hover:border-blue-300 transition-all',
-          dragging && 'shadow-lg rotate-1 border-blue-400',
-          card.priority === 'urgent' && 'border-l-4 border-l-red-400'
+          'bg-white rounded-lg border border-slate-200 p-3 cursor-pointer hover:border-crimson-300 transition-all',
+          dragging && 'shadow-lg rotate-1 border-crimson-400',
+          card.priority === 'urgent' && 'border-l-4 border-l-crimson-700'
         )}
       >
         {/* Top row */}
         <div className="flex items-start justify-between gap-2 mb-2">
-          <span className="font-mono text-xs text-slate-400">{card.delivery_ref}</span>
+          <span className="font-mono text-xs text-crimson-700">{card.delivery_ref}</span>
           {card.priority === 'urgent' && (
-            <span className="inline-flex items-center gap-1 bg-red-100 text-red-700 text-xs px-1.5 py-0.5 rounded-full font-medium flex-shrink-0">
+            <span className="inline-flex items-center gap-1 bg-crimson-100 text-crimson-700 text-xs px-1.5 py-0.5 rounded-full font-medium flex-shrink-0">
               <AlertTriangle className="w-3 h-3" />
               Urgent
             </span>
@@ -35,7 +35,7 @@ export default function DeliveryCardPreview({ card, dragging }: DeliveryCardPrev
         </div>
 
         {/* Destination */}
-        <p className="font-semibold text-slate-900 text-sm mb-1 line-clamp-2">{card.destination}</p>
+        <p className="font-bold text-slate-900 text-sm mb-1 line-clamp-2">{card.destination}</p>
 
         {/* Planned date */}
         {card.planned_date && (
@@ -78,8 +78,8 @@ export default function DeliveryCardPreview({ card, dragging }: DeliveryCardPrev
 
         {/* Driver */}
         {driverName && (
-          <div className="flex items-center gap-1 text-xs text-slate-500 mb-2">
-            <User className="w-3 h-3" />
+          <div className="flex items-center gap-1 text-xs text-gold-700 mb-2">
+            <Truck className="w-3 h-3" />
             <span className="truncate">{driverName}</span>
           </div>
         )}
