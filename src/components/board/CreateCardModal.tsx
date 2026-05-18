@@ -150,12 +150,7 @@ export default function CreateCardModal({ open, onClose, onCreated }: CreateCard
 
         {/* Customers */}
         <div>
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm font-medium text-slate-700">Customers</p>
-            <Button type="button" variant="outline" size="sm" onClick={addCustomer}>
-              <Plus className="w-3 h-3" /> Add Another
-            </Button>
-          </div>
+          <p className="text-sm font-medium text-slate-700 mb-2">Customers</p>
           {customers.map((cust, ci) => (
             <div key={ci} className="border border-slate-200 rounded-lg p-3 mb-3 space-y-2">
               <div className="flex justify-between items-start">
@@ -201,6 +196,9 @@ export default function CreateCardModal({ open, onClose, onCreated }: CreateCard
               </div>
             </div>
           ))}
+          <Button type="button" variant="outline" size="sm" onClick={addCustomer} className="mt-1">
+            <Plus className="w-3 h-3" /> Add Another
+          </Button>
         </div>
 
         <div className="flex gap-3 justify-end pt-2">
