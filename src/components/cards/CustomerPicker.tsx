@@ -14,7 +14,6 @@ interface CustomerPickerProps {
   deliveryLocation: string;
   onChangeName: (val: string) => void;
   onChangeDeliveryLocation: (val: string) => void;
-  namePlaceholder?: string;
   locationPlaceholder?: string;
 }
 
@@ -25,7 +24,6 @@ export default function CustomerPicker({
   deliveryLocation,
   onChangeName,
   onChangeDeliveryLocation,
-  namePlaceholder = 'Customer name *',
   locationPlaceholder = 'Delivery location',
 }: CustomerPickerProps) {
   const addToast = useToastStore((s) => s.addToast);
@@ -112,15 +110,6 @@ export default function CustomerPicker({
             New
           </button>
         </div>
-
-        {/* Name input — only shown when typing manually (no directory selection) */}
-        {!selectedId && (
-          <Input
-            placeholder={namePlaceholder}
-            value={name}
-            onChange={(e) => onChangeName(e.target.value)}
-          />
-        )}
 
         {/* Delivery location */}
         <Input
