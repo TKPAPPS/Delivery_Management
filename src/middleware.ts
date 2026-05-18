@@ -5,13 +5,20 @@ export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const res = NextResponse.next();
 
+  // If Supabase is not configured, redirect everything to /login so the app
+  // loads with a helpful setup message instead of a 500 error.
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    if (pathname !== '/login') return NextResponse.redirect(new URL('/login', req.url));
+    return res;
+  }
+
   // Skip public routes and API auth callback
   const publicPaths = ['/login', '/pending', '/api/auth'];
   if (publicPaths.some((p) => pathname.startsWith(p))) return res;
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         get(name: string) {
