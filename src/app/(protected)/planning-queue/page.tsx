@@ -78,7 +78,7 @@ export default function PlanningQueuePage() {
             customer_name: selectedItem.customer_name,
             delivery_location: selectedItem.delivery_location ?? '',
             notes: selectedItem.notes ?? '',
-            sale_orders: (selectedItem.sale_order_refs ?? []).map((so) => ({ sale_order_number: so })),
+            sale_orders: selectedItem.sale_order_refs ?? [],
             extra_items: (selectedItem.extra_items ?? []).map((ei) => ({
               item_name: ei.item_name,
               quantity: ei.quantity ?? '',

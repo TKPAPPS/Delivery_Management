@@ -77,6 +77,7 @@ export async function POST(req: NextRequest) {
           delivery_card_id: card.id,
           customer_name: c.customer_name,
           delivery_location: c.delivery_location || null,
+          notes: c.notes || null,
           sort_order: i,
         })
         .select()
