@@ -31,10 +31,10 @@ export default function Sidebar({ role }: SidebarProps) {
           'flex items-center gap-3 px-4 py-2.5 text-sm rounded-r-none transition-colors',
           active
             ? 'bg-crimson-50 text-crimson-700 border-r-2 border-crimson-700 font-semibold'
-            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-lg mx-2'
+            : 'text-slate-900 hover:bg-slate-50 hover:text-black rounded-lg mx-2'
         )}
       >
-        <Icon className={cn('w-4 h-4', active ? 'text-crimson-700' : 'text-slate-400')} />
+        <Icon className={cn('w-4 h-4', active ? 'text-crimson-700' : 'text-slate-700')} />
         {label}
       </Link>
     );
@@ -44,14 +44,14 @@ export default function Sidebar({ role }: SidebarProps) {
     <aside className="w-56 bg-white border-r border-slate-200 flex-shrink-0 flex flex-col py-4 overflow-y-auto">
       <nav className="flex-1">
         <div className="mb-4">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 mb-1">Operations</p>
+          <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider px-4 mb-1">Operations</p>
           <div className="space-y-0.5">
             {mainNav.map((item) => <NavItem key={item.href} {...item} />)}
           </div>
         </div>
         {(role === 'admin' || role === 'logistics') && (
           <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 mb-1">Admin</p>
+            <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider px-4 mb-1">Admin</p>
             <div className="space-y-0.5">
               {adminNav
                 .filter((item) => item.href !== '/admin/users' || role === 'admin')

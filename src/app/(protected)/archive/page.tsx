@@ -48,8 +48,8 @@ export default async function ArchivePage({ searchParams }: PageProps) {
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center gap-3 mb-6">
-        <Archive className="w-5 h-5 text-slate-500" />
-        <h1 className="text-xl font-bold text-slate-900">Archive</h1>
+        <Archive className="w-5 h-5 text-slate-700" />
+        <h1 className="text-xl font-bold text-black">Archive</h1>
       </div>
 
       {/* Search */}
