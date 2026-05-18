@@ -127,8 +127,8 @@ export default function AdminDriversPage() {
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="text-left px-4 py-3 font-semibold text-slate-600">Name</th>
-                <th className="text-left px-4 py-3 font-semibold text-slate-600">Phone</th>
-                <th className="text-left px-4 py-3 font-semibold text-slate-600">Vehicle</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-600 hidden sm:table-cell">Phone</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-600 hidden md:table-cell">Vehicle</th>
                 <th className="text-left px-4 py-3 font-semibold text-slate-600">Status</th>
                 <th className="text-right px-4 py-3 font-semibold text-slate-600">Actions</th>
               </tr>
@@ -137,8 +137,8 @@ export default function AdminDriversPage() {
               {drivers.map((driver) => (
                 <tr key={driver.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3 font-medium text-slate-900">{driver.name}</td>
-                  <td className="px-4 py-3 text-slate-600">{driver.phone ?? '—'}</td>
-                  <td className="px-4 py-3 text-slate-600">
+                  <td className="px-4 py-3 text-slate-600 hidden sm:table-cell">{driver.phone ?? '—'}</td>
+                  <td className="px-4 py-3 text-slate-600 hidden md:table-cell">
                     {[driver.vehicle_type, driver.license_plate].filter(Boolean).join(' · ') || '—'}
                   </td>
                   <td className="px-4 py-3">

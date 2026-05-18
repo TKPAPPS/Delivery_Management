@@ -25,7 +25,7 @@ export default async function ArchivePage({ searchParams }: PageProps) {
     `)
     .eq('is_archived', true)
     .order('archived_at', { ascending: false })
-    .limit(200);
+    .limit(500);
 
   // Filter in JS to support customer name + SO number search
   const filtered = q

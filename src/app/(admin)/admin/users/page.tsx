@@ -137,8 +137,8 @@ export default function AdminUsersPage() {
                 <tr>
                   <th className="text-left px-4 py-3 font-semibold text-slate-600">User</th>
                   <th className="text-left px-4 py-3 font-semibold text-slate-600">Role</th>
-                  <th className="text-left px-4 py-3 font-semibold text-slate-600">Status</th>
-                  <th className="text-left px-4 py-3 font-semibold text-slate-600">Joined</th>
+                  <th className="text-left px-4 py-3 font-semibold text-slate-600 hidden sm:table-cell">Status</th>
+                  <th className="text-left px-4 py-3 font-semibold text-slate-600 hidden md:table-cell">Joined</th>
                   <th className="text-right px-4 py-3 font-semibold text-slate-600">Actions</th>
                 </tr>
               </thead>
@@ -158,12 +158,12 @@ export default function AdminUsersPage() {
                         className="py-1 text-xs"
                       />
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 hidden sm:table-cell">
                       <Badge variant={user.active ? 'success' : 'warning'}>
                         {user.active ? 'Active' : 'Pending'}
                       </Badge>
                     </td>
-                    <td className="px-4 py-3 text-slate-500 text-xs">{formatDate(user.created_at)}</td>
+                    <td className="px-4 py-3 text-slate-500 text-xs hidden md:table-cell">{formatDate(user.created_at)}</td>
                     <td className="px-4 py-3 text-right">
                       <Button
                         size="sm"
@@ -195,8 +195,8 @@ export default function AdminUsersPage() {
                   <thead className="bg-slate-50 border-b border-slate-200">
                     <tr>
                       <th className="text-left px-4 py-3 font-semibold text-slate-600">Email</th>
-                      <th className="text-left px-4 py-3 font-semibold text-slate-600">Role</th>
-                      <th className="text-left px-4 py-3 font-semibold text-slate-600">Added</th>
+                      <th className="text-left px-4 py-3 font-semibold text-slate-600 hidden sm:table-cell">Role</th>
+                      <th className="text-left px-4 py-3 font-semibold text-slate-600 hidden md:table-cell">Added</th>
                       <th className="text-right px-4 py-3 font-semibold text-slate-600">Actions</th>
                     </tr>
                   </thead>
@@ -209,8 +209,8 @@ export default function AdminUsersPage() {
                             <span className="text-slate-700">{p.email}</span>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-slate-600 capitalize">{p.role.replace('_', ' ')}</td>
-                        <td className="px-4 py-3 text-slate-500 text-xs">{formatDate(p.created_at)}</td>
+                        <td className="px-4 py-3 text-slate-600 capitalize hidden sm:table-cell">{p.role.replace('_', ' ')}</td>
+                        <td className="px-4 py-3 text-slate-500 text-xs hidden md:table-cell">{formatDate(p.created_at)}</td>
                         <td className="px-4 py-3 text-right">
                           <Button size="sm" variant="ghost" onClick={() => removePending(p.id)}
                             className="text-red-500 hover:bg-red-50">
