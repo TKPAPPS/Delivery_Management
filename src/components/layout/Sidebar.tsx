@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Columns, Archive, Users, Truck } from 'lucide-react';
+import { LayoutDashboard, Columns, Archive, Users, Truck, ClipboardList } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SidebarProps {
@@ -11,6 +11,7 @@ interface SidebarProps {
 const mainNav = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/board', label: 'Board', icon: Columns },
+  { href: '/planning-queue', label: 'Planning Queue', icon: ClipboardList },
   { href: '/archive', label: 'Archive', icon: Archive },
 ];
 
