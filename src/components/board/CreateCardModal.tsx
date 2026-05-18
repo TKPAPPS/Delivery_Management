@@ -24,14 +24,15 @@ interface CreateCardModalProps {
 }
 
 const EMPTY_FORM = { destination: '', status: 'draft', planned_date: '', priority: 'normal', internal_notes: '' };
+const EMPTY_CUSTOMER: InlineCustomer = { customer_name: '', delivery_location: '', sale_orders: [''] };
 
 export default function CreateCardModal({ open, onClose, onCreated }: CreateCardModalProps) {
   const addToast = useToastStore((s) => s.addToast);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
-  const [customers, setCustomers] = useState<InlineCustomer[]>([]);
+  const [customers, setCustomers] = useState<InlineCustomer[]>([{ ...EMPTY_CUSTOMER }]);
 
-  const reset = () => { setForm(EMPTY_FORM); setCustomers([]); };
+  const reset = () => { setForm(EMPTY_FORM); setCustomers([{ ...EMPTY_CUSTOMER }]); };
   const handleClose = () => { reset(); onClose(); };
 
   const addCustomer = () => {
@@ -152,7 +153,7 @@ export default function CreateCardModal({ open, onClose, onCreated }: CreateCard
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm font-medium text-slate-700">Customers</p>
             <Button type="button" variant="outline" size="sm" onClick={addCustomer}>
-              <Plus className="w-3 h-3" /> Add Customer
+              <Plus className="w-3 h-3" /> Add Another
             </Button>
           </div>
           {customers.map((cust, ci) => (
