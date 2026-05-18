@@ -91,6 +91,19 @@ export async function POST(req: NextRequest) {
           );
         }
       }
+
+      if (cust && Array.isArray(c.extra_items)) {
+        const items = c.extra_items.filter((ei: { item_name: string }) => ei.item_name?.trim());
+        if (items.length > 0) {
+          await admin.from('extra_delivery_items').insert(
+            items.map((ei: { item_name: string; quantity?: string }) => ({
+              delivery_customer_id: cust.id,
+              item_name: ei.item_name,
+              quantity: ei.quantity || null,
+            }))
+          );
+        }
+      }
     }
   }
 
