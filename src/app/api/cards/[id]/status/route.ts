@@ -45,13 +45,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   };
   const notifType = notifMap[status as DeliveryStatus];
   if (notifType) {
-    try {
-      await sendNotification(notifType, params.id, {
-        deliveryRef: existing.delivery_ref,
-        destination: existing.destination,
-        plannedDate: existing.planned_date ?? undefined,
-      });
-    } catch { /* non-critical */ }
+    void sendNotification(notifType, params.id, {
+      deliveryRef: existing.delivery_ref,
+      destination: existing.destination,
+      plannedDate: existing.planned_date ?? undefined,
+    });
   }
 
   return NextResponse.json({ card });

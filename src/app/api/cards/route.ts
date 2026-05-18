@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
   // Send notifications
   try {
     const notifType = priority === 'urgent' ? 'urgent_card_created' : 'card_created';
-    await sendNotification(notifType, card.id, {
+    void sendNotification(notifType, card.id, {
       deliveryRef: card.delivery_ref,
       destination: card.destination,
       plannedDate: card.planned_date ?? undefined,

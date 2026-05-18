@@ -7,33 +7,24 @@ export const dynamic = 'force-dynamic';
 export default async function BoardPage() {
   const supabase = createSupabaseServerClient();
 
-  const { data: cards } = await supabase
-    .from('delivery_cards')
-    .select(`
-      *,
-      driver:drivers(*),
-      creator:profiles!delivery_cards_created_by_fkey(id, name, email),
-      customers:delivery_customers(
+  // Run all three queries in parallel
+  const [{ data: cards }, { data: commentCounts }, { data: attachmentCounts }] = await Promise.all([
+    supabase
+      .from('delivery_cards')
+      .select(`
         *,
-        sale_orders:customer_sale_orders(*),
-        extra_items:extra_delivery_items(*)
-      )
-    `)
-    .eq('is_archived', false)
-    .order('created_at', { ascending: false });
-
-  // Add comment and attachment counts
-  const cardIds = (cards ?? []).map((c) => c.id);
-
-  const [{ data: commentCounts }, { data: attachmentCounts }] = await Promise.all([
-    supabase
-      .from('comments')
-      .select('delivery_card_id')
-      .in('delivery_card_id', cardIds),
-    supabase
-      .from('attachments')
-      .select('delivery_card_id')
-      .in('delivery_card_id', cardIds),
+        driver:drivers(*),
+        creator:profiles!delivery_cards_created_by_fkey(id, name, email),
+        customers:delivery_customers(
+          *,
+          sale_orders:customer_sale_orders(*),
+          extra_items:extra_delivery_items(*)
+        )
+      `)
+      .eq('is_archived', false)
+      .order('created_at', { ascending: false }),
+    supabase.from('comments').select('delivery_card_id'),
+    supabase.from('attachments').select('delivery_card_id'),
   ]);
 
   const commentMap = (commentCounts ?? []).reduce<Record<string, number>>((acc, c) => {

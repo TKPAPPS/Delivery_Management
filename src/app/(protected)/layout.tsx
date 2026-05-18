@@ -9,18 +9,18 @@ export default async function ProtectedLayout({
   children: React.ReactNode;
 }) {
   const supabase = createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Middleware already validated the session — use getSession() to avoid
+  // a redundant network round-trip to Supabase auth on every page load.
+  const { data: { session } } = await supabase.auth.getSession();
 
-  if (!user) {
+  if (!session) {
     redirect('/login');
   }
 
   const { data: profile } = await supabase
     .from('profiles')
     .select('*')
-    .eq('id', user.id)
+    .eq('id', session.user.id)
     .single();
 
   if (!profile?.active) {
