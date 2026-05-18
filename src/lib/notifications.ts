@@ -69,40 +69,6 @@ export async function sendNotification(
     }
   }
 
-  // Attempt Resend email if LINE didn't succeed
-  const resendApiKey = process.env.RESEND_API_KEY;
-  const resendFrom = process.env.RESEND_FROM_EMAIL;
-  if (resendApiKey && resendFrom && status !== 'sent') {
-    try {
-      const res = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${resendApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from: resendFrom,
-          to: [resendFrom],
-          subject: `Delivery Board: ${type.replace(/_/g, ' ')}`,
-          text: message,
-        }),
-      });
-      if (res.ok) {
-        status = 'sent';
-        error = null;
-      } else {
-        const text = await res.text();
-        const emailError = `Resend error: ${res.status} ${text}`;
-        error = error ? `${error}; ${emailError}` : emailError;
-        status = 'failed';
-      }
-    } catch (err) {
-      const emailError = `Resend exception: ${err instanceof Error ? err.message : String(err)}`;
-      error = error ? `${error}; ${emailError}` : emailError;
-      status = 'failed';
-    }
-  }
-
   // Update event status
   await supabase
     .from('notification_events')
