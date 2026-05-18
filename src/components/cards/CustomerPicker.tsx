@@ -113,12 +113,14 @@ export default function CustomerPicker({
           </button>
         </div>
 
-        {/* Name (editable after selection or manual) */}
-        <Input
-          placeholder={namePlaceholder}
-          value={name}
-          onChange={(e) => onChangeName(e.target.value)}
-        />
+        {/* Name input — only shown when typing manually (no directory selection) */}
+        {!selectedId && (
+          <Input
+            placeholder={namePlaceholder}
+            value={name}
+            onChange={(e) => onChangeName(e.target.value)}
+          />
+        )}
 
         {/* Delivery location */}
         <Input
