@@ -3,6 +3,7 @@ import StatCard from '@/components/dashboard/StatCard';
 import UpcomingDeliveries from '@/components/dashboard/UpcomingDeliveries';
 import RecentCards from '@/components/dashboard/RecentCards';
 import { LayoutDashboard, Truck, CheckSquare, AlertTriangle, Clock } from 'lucide-react';
+import NewCardButton from '@/components/dashboard/NewCardButton';
 import type { DeliveryCard } from '@/types';
 
 export const dynamic = 'force-dynamic';
@@ -46,9 +47,12 @@ export default async function DashboardPage() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex items-center gap-3 mb-6">
-        <LayoutDashboard className="w-5 h-5 text-slate-700" />
-        <h1 className="text-xl font-bold text-black">Dashboard</h1>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <LayoutDashboard className="w-5 h-5 text-slate-700" />
+          <h1 className="text-xl font-bold text-black">Dashboard</h1>
+        </div>
+        <NewCardButton />
       </div>
 
       {/* Stats */}
