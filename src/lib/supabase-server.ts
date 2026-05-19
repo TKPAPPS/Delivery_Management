@@ -27,6 +27,19 @@ export function createSupabaseServerClient() {
   );
 }
 
+export async function getSessionUser() {
+  const supabase = createSupabaseServerClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return null;
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role, active')
+    .eq('id', session.user.id)
+    .single();
+  if (!profile?.active) return null;
+  return { user: session.user, profile: profile as { role: string; active: boolean }, supabase };
+}
+
 export function createSupabaseAdminClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

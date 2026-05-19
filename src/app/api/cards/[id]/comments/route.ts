@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseServerClient, createSupabaseAdminClient } from '@/lib/supabase-server';
+import { getSessionUser, createSupabaseAdminClient } from '@/lib/supabase-server';
 import { logActivity, ACTIONS } from '@/lib/activity';
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const ctx = await getSessionUser();
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { data: profile } = await supabase.from('profiles').select('active').eq('id', user.id).single();
-  if (!profile?.active) return NextResponse.json({ error: 'Account not active' }, { status: 403 });
-
-  const { data: comments, error } = await supabase
+  const { data: comments, error } = await ctx.supabase
     .from('comments')
     .select('*, profile:profiles(id, name, email)')
     .eq('delivery_card_id', params.id)
@@ -21,12 +17,9 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 }
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const { data: profile } = await supabase.from('profiles').select('active').eq('id', user.id).single();
-  if (!profile?.active) return NextResponse.json({ error: 'Account not active' }, { status: 403 });
+  const ctx = await getSessionUser();
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { user } = ctx;
 
   const { body } = await req.json();
   if (!body?.trim()) return NextResponse.json({ error: 'Comment body is required' }, { status: 400 });

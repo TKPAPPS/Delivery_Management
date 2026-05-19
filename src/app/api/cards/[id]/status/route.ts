@@ -1,16 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseServerClient, createSupabaseAdminClient } from '@/lib/supabase-server';
+import { getSessionUser, createSupabaseAdminClient } from '@/lib/supabase-server';
 import { logActivity, ACTIONS } from '@/lib/activity';
 import { sendNotification, type NotificationType } from '@/lib/notifications';
 import type { DeliveryStatus } from '@/types';
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const { data: profile } = await supabase.from('profiles').select('role, active').eq('id', user.id).single();
-  if (!profile?.active) return NextResponse.json({ error: 'Account not active' }, { status: 403 });
+  const ctx = await getSessionUser();
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { user } = ctx;
 
   const { status } = await req.json();
   const validStatuses: DeliveryStatus[] = ['draft', 'driver_needed', 'driver_booked', 'loaded'];
@@ -20,7 +17,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   const admin = createSupabaseAdminClient();
 
-  const { data: existing } = await admin.from('delivery_cards').select('status, delivery_ref, destination, planned_date').eq('id', params.id).single();
+  const { data: existing } = await admin
+    .from('delivery_cards')
+    .select('status, delivery_ref, destination, planned_date')
+    .eq('id', params.id)
+    .single();
+
   if (!existing) return NextResponse.json({ error: 'Card not found' }, { status: 404 });
 
   const { data: card, error } = await admin
@@ -32,12 +34,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  await logActivity(params.id, user.id, ACTIONS.STATUS_CHANGED, {
-    from: existing.status,
-    to: status,
-  });
+  await logActivity(params.id, user.id, ACTIONS.STATUS_CHANGED, { from: existing.status, to: status });
 
-  // Send notification
   const notifMap: Partial<Record<DeliveryStatus, NotificationType>> = {
     driver_needed: 'status_driver_needed',
     driver_booked: 'status_driver_booked',

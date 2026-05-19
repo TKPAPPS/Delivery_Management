@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseServerClient, createSupabaseAdminClient } from '@/lib/supabase-server';
+import { getSessionUser, createSupabaseAdminClient } from '@/lib/supabase-server';
 import { logActivity, ACTIONS } from '@/lib/activity';
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const { data: profile } = await supabase.from('profiles').select('active').eq('id', user.id).single();
-  if (!profile?.active) return NextResponse.json({ error: 'Account not active' }, { status: 403 });
+  const ctx = await getSessionUser();
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { user } = ctx;
 
   const admin = createSupabaseAdminClient();
 

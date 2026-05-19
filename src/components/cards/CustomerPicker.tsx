@@ -15,6 +15,7 @@ interface CustomerPickerProps {
   onChangeName: (val: string) => void;
   onChangeDeliveryLocation: (val: string) => void;
   locationPlaceholder?: string;
+  directory?: CustomerDirectory[];
 }
 
 const EMPTY_FORM = { name: '', contact_number: '', full_address: '', default_delivery_location: '', notes: '' };
@@ -25,19 +26,21 @@ export default function CustomerPicker({
   onChangeName,
   onChangeDeliveryLocation,
   locationPlaceholder = 'Delivery location',
+  directory: propDirectory,
 }: CustomerPickerProps) {
   const addToast = useToastStore((s) => s.addToast);
-  const [directory, setDirectory] = useState<CustomerDirectory[]>([]);
+  const [directory, setDirectory] = useState<CustomerDirectory[]>(propDirectory ?? []);
   const [createOpen, setCreateOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
 
   useEffect(() => {
+    if (propDirectory) { setDirectory(propDirectory); return; }
     fetch('/api/customer-directory')
       .then((r) => r.json())
       .then((d) => setDirectory(d.customers ?? []))
       .catch(() => {});
-  }, []);
+  }, [propDirectory]);
 
   const handleSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const id = e.target.value;

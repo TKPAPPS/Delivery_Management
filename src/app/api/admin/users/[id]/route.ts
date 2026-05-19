@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseServerClient, createSupabaseAdminClient } from '@/lib/supabase-server';
+import { getSessionUser, createSupabaseAdminClient } from '@/lib/supabase-server';
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const { data: profile } = await supabase.from('profiles').select('role, active').eq('id', user.id).single();
-  if (!profile?.active || profile.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const ctx = await getSessionUser();
+  if (!ctx || ctx.profile.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const body = await req.json();
   const allowedFields = ['active', 'role', 'name'];

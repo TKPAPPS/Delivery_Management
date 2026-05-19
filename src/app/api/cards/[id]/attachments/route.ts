@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseServerClient, createSupabaseAdminClient } from '@/lib/supabase-server';
+import { getSessionUser, createSupabaseAdminClient } from '@/lib/supabase-server';
 import { logActivity, ACTIONS } from '@/lib/activity';
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const ctx = await getSessionUser();
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { data: profile } = await supabase.from('profiles').select('active').eq('id', user.id).single();
-  if (!profile?.active) return NextResponse.json({ error: 'Account not active' }, { status: 403 });
-
-  const { data: attachments, error } = await supabase
+  const { data: attachments, error } = await ctx.supabase
     .from('attachments')
     .select('*, uploader:profiles!attachments_uploaded_by_fkey(id, name, email)')
     .eq('delivery_card_id', params.id)
@@ -21,12 +17,9 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 }
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const { data: profile } = await supabase.from('profiles').select('active').eq('id', user.id).single();
-  if (!profile?.active) return NextResponse.json({ error: 'Account not active' }, { status: 403 });
+  const ctx = await getSessionUser();
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { user } = ctx;
 
   const formData = await req.formData();
   const file = formData.get('file') as File | null;
@@ -43,9 +36,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 500 });
 
-  const { data: urlData } = admin.storage
-    .from('delivery-attachments')
-    .getPublicUrl(storagePath);
+  const { data: urlData } = admin.storage.from('delivery-attachments').getPublicUrl(storagePath);
 
   const { data: attachment, error } = await admin
     .from('attachments')
@@ -68,12 +59,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const { data: profile } = await supabase.from('profiles').select('active').eq('id', user.id).single();
-  if (!profile?.active) return NextResponse.json({ error: 'Account not active' }, { status: 403 });
+  const ctx = await getSessionUser();
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { user } = ctx;
 
   const { searchParams } = new URL(req.url);
   const attachmentId = searchParams.get('id');
@@ -84,7 +72,6 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   const { data: att } = await admin.from('attachments').select('*').eq('id', attachmentId).single();
   if (!att) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  // Remove from storage
   await admin.storage.from('delivery-attachments').remove([att.storage_path]);
 
   const { error } = await admin.from('attachments').delete().eq('id', attachmentId);

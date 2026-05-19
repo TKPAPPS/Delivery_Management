@@ -1,19 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseServerClient, createSupabaseAdminClient } from '@/lib/supabase-server';
+import { getSessionUser, createSupabaseAdminClient } from '@/lib/supabase-server';
 import { logActivity, ACTIONS } from '@/lib/activity';
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const { data: profile } = await supabase.from('profiles').select('active').eq('id', user.id).single();
-  if (!profile?.active) return NextResponse.json({ error: 'Account not active' }, { status: 403 });
+  const ctx = await getSessionUser();
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { user } = ctx;
 
   const body = await req.json();
   const admin = createSupabaseAdminClient();
 
-  // Get customer for context
   const { data: customer } = await admin
     .from('delivery_customers')
     .select('*, sale_orders:customer_sale_orders(*), extra_items:extra_delivery_items(*)')
@@ -22,12 +18,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   if (!customer) return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
 
-  // Handle unload action
   if (body.unload) {
     const { action, target_card_id, new_destination, notes, reason } = body;
 
     if (action === 'move' && target_card_id) {
-      // Move customer to another card
       const { error } = await admin
         .from('delivery_customers')
         .update({ delivery_card_id: target_card_id, notes: notes || customer.notes })
@@ -44,24 +38,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     }
 
     if (action === 'create_card' && new_destination) {
-      // Create a new card and move customer there
       const { data: newCard, error: cardError } = await admin
         .from('delivery_cards')
-        .insert({
-          destination: new_destination,
-          status: 'draft',
-          priority: 'normal',
-          created_by: user.id,
-        })
+        .insert({ destination: new_destination, status: 'draft', priority: 'normal', created_by: user.id })
         .select()
         .single();
 
       if (cardError || !newCard) return NextResponse.json({ error: 'Failed to create card' }, { status: 500 });
 
-      await admin
-        .from('delivery_customers')
-        .update({ delivery_card_id: newCard.id })
-        .eq('id', params.id);
+      await admin.from('delivery_customers').update({ delivery_card_id: newCard.id }).eq('id', params.id);
 
       await logActivity(customer.delivery_card_id, user.id, ACTIONS.CUSTOMER_MOVED, {
         customer_name: customer.customer_name,
@@ -71,7 +56,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       return NextResponse.json({ success: true, newCardId: newCard.id });
     }
 
-    // Default: move to planning queue
     await admin.from('planning_queue').insert({
       customer_name: customer.customer_name,
       delivery_location: customer.delivery_location,
@@ -85,7 +69,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       created_by: user.id,
     });
 
-    // Remove from delivery card
     await admin.from('delivery_customers').delete().eq('id', params.id);
 
     await logActivity(customer.delivery_card_id, user.id, ACTIONS.CUSTOMER_UNLOADED, {
@@ -96,7 +79,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ success: true });
   }
 
-  // Regular update
   const updateData: Record<string, unknown> = {};
   const allowedFields = ['customer_name', 'delivery_location', 'notes', 'partial_shipment', 'partial_shipment_note', 'sort_order'];
   for (const field of allowedFields) {
@@ -122,12 +104,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const { data: profile } = await supabase.from('profiles').select('active').eq('id', user.id).single();
-  if (!profile?.active) return NextResponse.json({ error: 'Account not active' }, { status: 403 });
+  const ctx = await getSessionUser();
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { user } = ctx;
 
   const admin = createSupabaseAdminClient();
 

@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseServerClient, createSupabaseAdminClient } from '@/lib/supabase-server';
+import { getSessionUser, createSupabaseAdminClient } from '@/lib/supabase-server';
 import { logActivity, ACTIONS } from '@/lib/activity';
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const ctx = await getSessionUser();
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { data: profile } = await supabase.from('profiles').select('active').eq('id', user.id).single();
-  if (!profile?.active) return NextResponse.json({ error: 'Account not active' }, { status: 403 });
-
-  const { data: customers, error } = await supabase
+  const { data: customers, error } = await ctx.supabase
     .from('delivery_customers')
     .select('*, sale_orders:customer_sale_orders(*), extra_items:extra_delivery_items(*)')
     .eq('delivery_card_id', params.id)
@@ -21,12 +17,9 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 }
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const { data: profile } = await supabase.from('profiles').select('active').eq('id', user.id).single();
-  if (!profile?.active) return NextResponse.json({ error: 'Account not active' }, { status: 403 });
+  const ctx = await getSessionUser();
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { user } = ctx;
 
   const body = await req.json();
   const { customer_name, delivery_location, notes, sale_orders } = body;
@@ -35,7 +28,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const admin = createSupabaseAdminClient();
 
-  // Get sort order
   const { count } = await admin
     .from('delivery_customers')
     .select('*', { count: 'exact', head: true })

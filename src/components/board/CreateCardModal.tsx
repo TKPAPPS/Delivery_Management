@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -9,6 +9,7 @@ import Select from '@/components/ui/Select';
 import DatePicker from '@/components/ui/DatePicker';
 import DestinationInput from '@/components/ui/DestinationInput';
 import CustomerPicker from '@/components/cards/CustomerPicker';
+import type { CustomerDirectory } from '@/types';
 import { useToastStore } from '@/store/toastStore';
 import { Plus, Trash2 } from 'lucide-react';
 
@@ -32,6 +33,14 @@ export default function CreateCardModal({ open, onClose, onCreated }: CreateCard
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [customers, setCustomers] = useState<InlineCustomer[]>([{ ...EMPTY_CUSTOMER }]);
+  const [customerDirectory, setCustomerDirectory] = useState<CustomerDirectory[]>([]);
+
+  useEffect(() => {
+    fetch('/api/customer-directory')
+      .then((r) => r.json())
+      .then((d) => setCustomerDirectory(d.customers ?? []))
+      .catch(() => {});
+  }, []);
 
   const reset = () => { setForm(EMPTY_FORM); setCustomers([{ ...EMPTY_CUSTOMER }]); };
   const handleClose = () => { reset(); onClose(); };
@@ -169,6 +178,7 @@ export default function CreateCardModal({ open, onClose, onCreated }: CreateCard
                 deliveryLocation={cust.delivery_location}
                 onChangeName={(v) => updateCustomer(ci, 'customer_name', v)}
                 onChangeDeliveryLocation={(v) => updateCustomer(ci, 'delivery_location', v)}
+                directory={customerDirectory}
               />
               <div className="space-y-1">
                 <p className="text-xs text-slate-500">Sale Orders</p>

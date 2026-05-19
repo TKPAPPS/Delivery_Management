@@ -1,21 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseServerClient, createSupabaseAdminClient } from '@/lib/supabase-server';
+import { getSessionUser, createSupabaseAdminClient } from '@/lib/supabase-server';
 import { logActivity, ACTIONS } from '@/lib/activity';
 import { sendNotification } from '@/lib/notifications';
 
 export async function GET(req: NextRequest) {
-  const supabase = createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const { data: profile } = await supabase.from('profiles').select('role, active').eq('id', user.id).single();
-  if (!profile?.active) return NextResponse.json({ error: 'Account not active' }, { status: 403 });
+  const ctx = await getSessionUser();
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
   const includeCustomers = searchParams.get('include_customers') === 'true';
   const isArchived = searchParams.get('archived') === 'true';
 
-  const query = supabase
+  const query = ctx.supabase
     .from('delivery_cards')
     .select(includeCustomers ? `
       *,
@@ -37,12 +33,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const { data: profile } = await supabase.from('profiles').select('role, active').eq('id', user.id).single();
-  if (!profile?.active) return NextResponse.json({ error: 'Account not active' }, { status: 403 });
+  const ctx = await getSessionUser();
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { user } = ctx;
 
   const body = await req.json();
   const { destination, status, planned_date, priority, internal_notes, customers } = body;
@@ -66,7 +59,6 @@ export async function POST(req: NextRequest) {
 
   if (error || !card) return NextResponse.json({ error: error?.message ?? 'Failed to create card' }, { status: 500 });
 
-  // Add inline customers
   if (Array.isArray(customers) && customers.length > 0) {
     for (let i = 0; i < customers.length; i++) {
       const c = customers[i];
@@ -107,12 +99,8 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  await logActivity(card.id, user.id, ACTIONS.CARD_CREATED, {
-    destination,
-    status: card.status,
-  });
+  await logActivity(card.id, user.id, ACTIONS.CARD_CREATED, { destination, status: card.status });
 
-  // Send notifications
   try {
     const notifType = priority === 'urgent' ? 'urgent_card_created' : 'card_created';
     void sendNotification(notifType, card.id, {

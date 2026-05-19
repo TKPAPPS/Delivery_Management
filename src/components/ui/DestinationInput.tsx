@@ -2,6 +2,15 @@
 
 import { useEffect, useId, useState } from 'react';
 
+let _cache: string[] | null = null;
+async function fetchDestinations(): Promise<string[]> {
+  if (_cache) return _cache;
+  const r = await fetch('/api/destinations');
+  const d = await r.json();
+  _cache = (d.destinations ?? []).map((dest: { name: string }) => dest.name);
+  return _cache!;
+}
+
 interface DestinationInputProps {
   label?: string;
   value: string;
@@ -23,10 +32,7 @@ export default function DestinationInput({
   const [options, setOptions] = useState<string[]>([]);
 
   useEffect(() => {
-    fetch('/api/destinations')
-      .then((r) => r.json())
-      .then((d) => setOptions((d.destinations ?? []).map((dest: { name: string }) => dest.name)))
-      .catch(() => {});
+    fetchDestinations().then(setOptions).catch(() => {});
   }, []);
 
   return (
