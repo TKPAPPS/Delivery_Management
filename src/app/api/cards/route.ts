@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser, createSupabaseAdminClient } from '@/lib/supabase-server';
 import { logActivity, ACTIONS } from '@/lib/activity';
 import { sendNotification } from '@/lib/notifications';
+import { parseBody } from '@/lib/parse-body';
 import type { DeliveryCardWithCustomers } from '@/types';
 
 export async function GET(req: NextRequest) {
@@ -88,8 +89,13 @@ export async function POST(req: NextRequest) {
   if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { user } = ctx;
 
-  const body = await req.json();
-  const { destination, status, planned_date, priority, internal_notes, customers } = body;
+  const parsed = await parseBody(req);
+  if ('error' in parsed) return parsed.error;
+  const body = parsed.data as Record<string, unknown>;
+  const { destination, status, planned_date, priority, internal_notes, customers } = body as {
+    destination: string; status?: string; planned_date?: string; priority?: string;
+    internal_notes?: string; customers?: Array<{ customer_name?: string; [key: string]: unknown }>;
+  };
 
   if (!destination) return NextResponse.json({ error: 'Destination is required' }, { status: 400 });
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser, createSupabaseAdminClient } from '@/lib/supabase-server';
 import { logActivity, ACTIONS } from '@/lib/activity';
+import { parseBody } from '@/lib/parse-body';
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const ctx = await getSessionUser();
@@ -21,7 +22,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { user } = ctx;
 
-  const body = await req.json();
+  const parsed = await parseBody(req);
+  if ('error' in parsed) return parsed.error;
+  const body = parsed.data as Record<string, unknown>;
   const { customer_name, delivery_location, notes, sale_orders } = body;
 
   if (!customer_name) return NextResponse.json({ error: 'Customer name is required' }, { status: 400 });

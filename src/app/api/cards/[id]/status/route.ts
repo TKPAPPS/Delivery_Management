@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser, createSupabaseAdminClient } from '@/lib/supabase-server';
 import { logActivity, ACTIONS } from '@/lib/activity';
 import { sendNotification, type NotificationType } from '@/lib/notifications';
+import { parseBody } from '@/lib/parse-body';
 import type { DeliveryStatus } from '@/types';
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
@@ -9,7 +10,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { user } = ctx;
 
-  const { status, delivery_notes } = await req.json();
+  const parsed = await parseBody<{ status: DeliveryStatus; delivery_notes?: string }>(req);
+  if ('error' in parsed) return parsed.error;
+  const { status, delivery_notes } = parsed.data;
   const validStatuses: DeliveryStatus[] = ['draft', 'pending_booking', 'booked', 'in_transit', 'delivered'];
   if (!validStatuses.includes(status)) {
     return NextResponse.json({ error: 'Invalid status' }, { status: 400 });

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser, createSupabaseAdminClient } from '@/lib/supabase-server';
+import { parseBody } from '@/lib/parse-body';
 
 export async function GET() {
   const ctx = await getSessionUser();
@@ -19,7 +20,9 @@ export async function POST(req: NextRequest) {
   const ctx = await getSessionUser();
   if (!ctx || ctx.profile.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-  const { email, role } = await req.json();
+  const parsed = await parseBody<{ email: string; role?: string }>(req);
+  if ('error' in parsed) return parsed.error;
+  const { email, role } = parsed.data;
   if (!email?.trim()) return NextResponse.json({ error: 'Email is required' }, { status: 400 });
 
   const normalised = email.trim().toLowerCase();

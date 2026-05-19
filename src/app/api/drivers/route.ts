@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser, createSupabaseAdminClient } from '@/lib/supabase-server';
+import { parseBody } from '@/lib/parse-body';
 
 export async function GET() {
   const ctx = await getSessionUser();
@@ -19,8 +20,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const body = await req.json();
-  const { name, phone, vehicle_type, license_plate, notes } = body;
+  const parsed = await parseBody(req);
+  if ('error' in parsed) return parsed.error;
+  const { name, phone, vehicle_type, license_plate, notes } = parsed.data as {
+    name: string; phone?: string; vehicle_type?: string; license_plate?: string; notes?: string;
+  };
   if (!name) return NextResponse.json({ error: 'Name is required' }, { status: 400 });
 
   const admin = createSupabaseAdminClient();

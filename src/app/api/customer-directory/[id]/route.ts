@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser, createSupabaseAdminClient } from '@/lib/supabase-server';
+import { parseBody } from '@/lib/parse-body';
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const ctx = await getSessionUser();
   if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const body = await req.json();
+  const parsed = await parseBody(req);
+  if ('error' in parsed) return parsed.error;
+  const body = parsed.data as Record<string, unknown>;
   const admin = createSupabaseAdminClient();
   const { data: customer, error } = await admin
     .from('customer_directory')

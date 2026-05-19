@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser, createSupabaseAdminClient } from '@/lib/supabase-server';
 import { logActivity, ACTIONS } from '@/lib/activity';
+import { parseBody } from '@/lib/parse-body';
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const ctx = await getSessionUser();
@@ -21,7 +22,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { user } = ctx;
 
-  const { body } = await req.json();
+  const parsed = await parseBody<{ body: string }>(req);
+  if ('error' in parsed) return parsed.error;
+  const { body } = parsed.data;
   if (!body?.trim()) return NextResponse.json({ error: 'Comment body is required' }, { status: 400 });
 
   const admin = createSupabaseAdminClient();
