@@ -5,7 +5,7 @@ import type { DeliveryCard, Driver } from '@/types';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
-import { Truck, Edit, Check, X } from 'lucide-react';
+import { Truck, Edit, Check, X, ExternalLink } from 'lucide-react';
 import { useToastStore } from '@/store/toastStore';
 
 interface DriverSectionProps {
@@ -134,19 +134,26 @@ export default function DriverSection({ card, drivers, onUpdated }: DriverSectio
         </div>
       ) : (
         <div className="space-y-3">
-          {drivers.length > 0 && (
+          {drivers.length > 0 ? (
             <Select
               label="Select from roster"
               value={form.driver_id}
               onChange={(e) => setForm((f) => ({ ...f, driver_id: e.target.value }))}
               options={[
-                { value: '', label: 'Manual entry' },
+                { value: '', label: '— Manual entry —' },
                 ...drivers.filter((d) => d.active).map((d) => ({
                   value: d.id,
                   label: `${d.name}${d.license_plate ? ` (${d.license_plate})` : ''}`,
                 })),
               ]}
             />
+          ) : (
+            <p className="text-xs text-slate-400 flex items-center gap-1">
+              No drivers in roster.{' '}
+              <a href="/admin/drivers" className="text-crimson-600 hover:underline flex items-center gap-0.5">
+                Add drivers in Admin <ExternalLink className="w-3 h-3" />
+              </a>
+            </p>
           )}
           {!form.driver_id && (
             <>
