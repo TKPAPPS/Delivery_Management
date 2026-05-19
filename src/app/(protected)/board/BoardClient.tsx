@@ -5,7 +5,7 @@ import { DragDropContext, DropResult } from '@hello-pangea/dnd';
 import KanbanColumn from '@/components/board/KanbanColumn';
 import CreateCardModal from '@/components/board/CreateCardModal';
 import Button from '@/components/ui/Button';
-import { Plus, RefreshCw, AlertTriangle, Truck } from 'lucide-react';
+import { Plus, RefreshCw, AlertTriangle, Truck, Search, X } from 'lucide-react';
 import type { DeliveryCardWithCustomers, DeliveryStatus } from '@/types';
 import { useToastStore } from '@/store/toastStore';
 import { statusLabel, statusColor, formatDate } from '@/lib/utils';
@@ -22,11 +22,26 @@ export default function BoardClient({ initialCards }: BoardClientProps) {
   const [createOpen, setCreateOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [mobileFilter, setMobileFilter] = useState<DeliveryStatus | 'all'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const addToast = useToastStore((s) => s.addToast);
+
+  const searchLower = searchQuery.toLowerCase().trim();
+  const visibleCards = searchLower
+    ? cards.filter((card) =>
+        card.destination?.toLowerCase().includes(searchLower) ||
+        card.delivery_ref?.toLowerCase().includes(searchLower) ||
+        card.driver?.name?.toLowerCase().includes(searchLower) ||
+        card.driver_name_manual?.toLowerCase().includes(searchLower) ||
+        card.customers.some((c) => c.customer_name.toLowerCase().includes(searchLower)) ||
+        card.customers.some((c) =>
+          c.sale_orders.some((so) => so.sale_order_number.toLowerCase().includes(searchLower))
+        )
+      )
+    : cards;
 
   const cardsByStatus = STATUSES.reduce<Record<DeliveryStatus, DeliveryCardWithCustomers[]>>(
     (acc, status) => {
-      acc[status] = cards.filter((c) => c.status === status);
+      acc[status] = visibleCards.filter((c) => c.status === status);
       return acc;
     },
     { draft: [], driver_needed: [], driver_booked: [], loaded: [], delivered: [] }
@@ -100,13 +115,30 @@ export default function BoardClient({ initialCards }: BoardClientProps) {
     }
   };
 
-  const mobileCards = mobileFilter === 'all' ? cards : cards.filter((c) => c.status === mobileFilter);
+  const mobileCards = mobileFilter === 'all' ? visibleCards : visibleCards.filter((c) => c.status === mobileFilter);
 
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 md:px-6 py-4 border-b border-slate-200 bg-white flex-shrink-0">
-        <h1 className="text-xl font-bold text-black">Delivery Board</h1>
+      <div className="flex items-center justify-between px-4 md:px-6 py-3 border-b border-slate-200 bg-white flex-shrink-0 gap-3">
+        <h1 className="text-xl font-bold text-black hidden md:block flex-shrink-0">Delivery Board</h1>
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search cards…"
+            className="w-full pl-9 pr-8 py-1.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-crimson-500 bg-white"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" onClick={refresh} loading={refreshing}>
             <RefreshCw className="w-4 h-4" />

@@ -16,6 +16,8 @@ import {
   Truck,
   Plus,
   X,
+  Pencil,
+  Check,
 } from 'lucide-react';
 import Input from '@/components/ui/Input';
 
@@ -37,6 +39,9 @@ export default function CustomerSection({ customers, card, activeCards, onRefres
   const [newSO, setNewSO] = useState('');
   const [addingItemFor, setAddingItemFor] = useState<string | null>(null);
   const [newItem, setNewItem] = useState({ item_name: '', quantity: '' });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editFields, setEditFields] = useState({ customer_name: '', delivery_location: '', notes: '' });
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const handleDelete = async () => {
     if (!deleteId) return;
@@ -101,6 +106,39 @@ export default function CustomerSection({ customers, card, activeCards, onRefres
     }
   };
 
+  const openEdit = (cust: CustomerWithRelations) => {
+    setEditFields({
+      customer_name: cust.customer_name,
+      delivery_location: cust.delivery_location ?? '',
+      notes: cust.notes ?? '',
+    });
+    setEditingId(cust.id);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingId || !editFields.customer_name.trim()) return;
+    setSavingEdit(true);
+    try {
+      const res = await fetch(`/api/customers/${editingId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer_name: editFields.customer_name.trim(),
+          delivery_location: editFields.delivery_location.trim() || null,
+          notes: editFields.notes.trim() || null,
+        }),
+      });
+      if (!res.ok) throw new Error('Failed to update customer');
+      addToast('Customer updated', 'success');
+      setEditingId(null);
+      onRefresh();
+    } catch {
+      addToast('Failed to update customer', 'error');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   const handleDeleteItem = async (itemId: string) => {
     try {
       const res = await fetch(`/api/extra-items/${itemId}`, { method: 'DELETE' });
@@ -121,31 +159,67 @@ export default function CustomerSection({ customers, card, activeCards, onRefres
       <div className="space-y-2">
         {customers.map((cust) => (
           <div key={cust.id} className="border border-slate-200 rounded-lg overflow-hidden">
-            <div
-              className="flex items-center justify-between px-3 py-2.5 cursor-pointer hover:bg-slate-50"
-              onClick={() => setExpanded((e) => (e === cust.id ? null : cust.id))}
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="font-medium text-sm text-slate-900 truncate">{cust.customer_name}</span>
-                {cust.partial_shipment && (
-                  <Badge variant="warning">Partial</Badge>
-                )}
-                {cust.sale_orders.length > 0 && (
-                  <span className="text-xs text-slate-400">
-                    {cust.sale_orders.length} SO
-                  </span>
-                )}
+            {editingId === cust.id ? (
+              <div className="px-3 py-2.5 space-y-2 bg-slate-50">
+                <Input
+                  label="Customer Name"
+                  value={editFields.customer_name}
+                  onChange={(e) => setEditFields((f) => ({ ...f, customer_name: e.target.value }))}
+                />
+                <Input
+                  label="Delivery Location"
+                  value={editFields.delivery_location}
+                  onChange={(e) => setEditFields((f) => ({ ...f, delivery_location: e.target.value }))}
+                  placeholder="Building, floor, contact…"
+                />
+                <Input
+                  label="Notes"
+                  value={editFields.notes}
+                  onChange={(e) => setEditFields((f) => ({ ...f, notes: e.target.value }))}
+                  placeholder="Optional notes"
+                />
+                <div className="flex gap-2 pt-1">
+                  <Button size="sm" onClick={handleSaveEdit} loading={savingEdit} disabled={!editFields.customer_name.trim()}>
+                    <Check className="w-3.5 h-3.5" /> Save
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setEditingId(null)} disabled={savingEdit}>
+                    Cancel
+                  </Button>
+                </div>
               </div>
-              <div className="flex items-center gap-1">
-                {expanded === cust.id ? (
-                  <ChevronUp className="w-4 h-4 text-slate-400" />
-                ) : (
-                  <ChevronDown className="w-4 h-4 text-slate-400" />
-                )}
+            ) : (
+              <div
+                className="flex items-center justify-between px-3 py-2.5 cursor-pointer hover:bg-slate-50"
+                onClick={() => setExpanded((e) => (e === cust.id ? null : cust.id))}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="font-medium text-sm text-slate-900 truncate">{cust.customer_name}</span>
+                  {cust.partial_shipment && (
+                    <Badge variant="warning">Partial</Badge>
+                  )}
+                  {cust.sale_orders.length > 0 && (
+                    <span className="text-xs text-slate-400">
+                      {cust.sale_orders.length} SO
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); openEdit(cust); }}
+                    className="p-1 text-slate-400 hover:text-slate-600 rounded"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                  {expanded === cust.id ? (
+                    <ChevronUp className="w-4 h-4 text-slate-400" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-slate-400" />
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
-            {expanded === cust.id && (
+            {editingId !== cust.id && expanded === cust.id && (
               <div className="px-3 pb-3 border-t border-slate-100 pt-3 space-y-3">
                 {cust.delivery_location && (
                   <p className="text-sm text-slate-600">

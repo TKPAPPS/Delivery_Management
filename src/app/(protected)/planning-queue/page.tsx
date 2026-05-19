@@ -5,9 +5,10 @@ import type { PlanningQueueItem, DeliveryStatus } from '@/types';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import Select from '@/components/ui/Select';
+import Input from '@/components/ui/Input';
 import DestinationInput from '@/components/ui/DestinationInput';
 import { useToastStore } from '@/store/toastStore';
-import { ClipboardList, RefreshCw, Trash2, Plus, ArrowRight } from 'lucide-react';
+import { ClipboardList, RefreshCw, Trash2, Plus, ArrowRight, ChevronUp, ChevronDown } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 
 const STATUS_OPTIONS = [
@@ -27,6 +28,17 @@ export default function PlanningQueuePage() {
   const [newDestination, setNewDestination] = useState('');
   const [newStatus, setNewStatus] = useState<DeliveryStatus>('draft');
   const [creating, setCreating] = useState(false);
+
+  // Direct add modal
+  const [addOpen, setAddOpen] = useState(false);
+  const [addForm, setAddForm] = useState({
+    customer_name: '',
+    destination: '',
+    delivery_location: '',
+    sale_orders_text: '',
+    notes: '',
+  });
+  const [adding, setAdding] = useState(false);
 
   const fetchItems = async () => {
     setLoading(true);
@@ -57,6 +69,24 @@ export default function PlanningQueuePage() {
     }
   };
 
+  const moveItem = async (index: number, direction: 'up' | 'down') => {
+    const swapIndex = direction === 'up' ? index - 1 : index + 1;
+    if (swapIndex < 0 || swapIndex >= items.length) return;
+    const newItems = [...items];
+    [newItems[index], newItems[swapIndex]] = [newItems[swapIndex], newItems[index]];
+    setItems(newItems);
+    // Persist all sort_orders to match current array positions
+    await Promise.all(
+      newItems.map((item, i) =>
+        fetch(`/api/planning-queue/${item.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sort_order: i }),
+        })
+      )
+    );
+  };
+
   const openCreateCard = (item: PlanningQueueItem) => {
     setSelectedItem(item);
     setNewDestination(item.destination ?? '');
@@ -68,7 +98,6 @@ export default function PlanningQueuePage() {
     if (!selectedItem || !newDestination.trim()) return;
     setCreating(true);
     try {
-      // Create the card
       const cardRes = await fetch('/api/cards', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -88,11 +117,8 @@ export default function PlanningQueuePage() {
         }),
       });
       if (!cardRes.ok) throw new Error('Failed to create card');
-
-      // Remove from queue
       await fetch(`/api/planning-queue/${selectedItem.id}`, { method: 'DELETE' });
       setItems((prev) => prev.filter((i) => i.id !== selectedItem.id));
-
       addToast('Delivery card created', 'success');
       setCreateOpen(false);
       setSelectedItem(null);
@@ -100,6 +126,39 @@ export default function PlanningQueuePage() {
       addToast('Failed to create card', 'error');
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleDirectAdd = async () => {
+    if (!addForm.customer_name.trim()) return;
+    setAdding(true);
+    try {
+      const sale_order_refs = addForm.sale_orders_text
+        .split('\n')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const res = await fetch('/api/planning-queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer_name: addForm.customer_name.trim(),
+          destination: addForm.destination.trim() || null,
+          delivery_location: addForm.delivery_location.trim() || null,
+          sale_order_refs,
+          extra_items: [],
+          notes: addForm.notes.trim() || null,
+        }),
+      });
+      if (!res.ok) throw new Error('Failed to add to queue');
+      const data = await res.json();
+      setItems((prev) => [data.item, ...prev]);
+      addToast('Added to queue', 'success');
+      setAddOpen(false);
+      setAddForm({ customer_name: '', destination: '', delivery_location: '', sale_orders_text: '', notes: '' });
+    } catch {
+      addToast('Failed to add to queue', 'error');
+    } finally {
+      setAdding(false);
     }
   };
 
@@ -113,9 +172,14 @@ export default function PlanningQueuePage() {
             <p className="text-xs text-slate-500 mt-0.5">Customers awaiting assignment to a delivery card</p>
           </div>
         </div>
-        <Button variant="ghost" size="sm" onClick={fetchItems} loading={loading}>
-          <RefreshCw className="w-4 h-4" />
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="ghost" size="sm" onClick={fetchItems} loading={loading}>
+            <RefreshCw className="w-4 h-4" />
+          </Button>
+          <Button size="sm" onClick={() => setAddOpen(true)}>
+            <Plus className="w-4 h-4" /> Add to Queue
+          </Button>
+        </div>
       </div>
 
       {loading ? (
@@ -124,13 +188,31 @@ export default function PlanningQueuePage() {
         <div className="text-center py-16 text-slate-400">
           <ClipboardList className="w-12 h-12 mx-auto mb-3 opacity-30" />
           <p className="text-sm font-medium">Queue is empty</p>
-          <p className="text-xs mt-1">Customers unloaded from delivery cards will appear here</p>
+          <p className="text-xs mt-1">Add customers directly or unload them from delivery cards</p>
         </div>
       ) : (
         <div className="space-y-3">
-          {items.map((item) => (
+          {items.map((item, index) => (
             <div key={item.id} className="bg-white border border-slate-200 rounded-xl p-4">
               <div className="flex items-start justify-between gap-4">
+                {/* Reorder buttons */}
+                <div className="flex flex-col gap-0.5 flex-shrink-0 pt-0.5">
+                  <button
+                    onClick={() => moveItem(index, 'up')}
+                    disabled={index === 0}
+                    className="p-0.5 text-slate-300 hover:text-slate-600 disabled:opacity-0"
+                  >
+                    <ChevronUp className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => moveItem(index, 'down')}
+                    disabled={index === items.length - 1}
+                    className="p-0.5 text-slate-300 hover:text-slate-600 disabled:opacity-0"
+                  >
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
+                </div>
+
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <p className="font-semibold text-slate-900">{item.customer_name}</p>
@@ -232,6 +314,59 @@ export default function PlanningQueuePage() {
             </div>
           </>
         )}
+      </Modal>
+
+      {/* Direct Add Modal */}
+      <Modal
+        open={addOpen}
+        onClose={() => { setAddOpen(false); setAddForm({ customer_name: '', destination: '', delivery_location: '', sale_orders_text: '', notes: '' }); }}
+        title="Add to Planning Queue"
+        size="sm"
+      >
+        <div className="space-y-3">
+          <Input
+            label="Customer Name *"
+            value={addForm.customer_name}
+            onChange={(e) => setAddForm((f) => ({ ...f, customer_name: e.target.value }))}
+            placeholder="Customer name"
+          />
+          <Input
+            label="Destination (hint)"
+            value={addForm.destination}
+            onChange={(e) => setAddForm((f) => ({ ...f, destination: e.target.value }))}
+            placeholder="e.g. Bangrak warehouse"
+          />
+          <Input
+            label="Delivery Location"
+            value={addForm.delivery_location}
+            onChange={(e) => setAddForm((f) => ({ ...f, delivery_location: e.target.value }))}
+            placeholder="Building, floor, contact…"
+          />
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">Sale Orders</label>
+            <textarea
+              value={addForm.sale_orders_text}
+              onChange={(e) => setAddForm((f) => ({ ...f, sale_orders_text: e.target.value }))}
+              rows={3}
+              placeholder="One SO number per line&#10;SO-1234&#10;SO-5678"
+              className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-crimson-500 resize-none"
+            />
+          </div>
+          <Input
+            label="Notes"
+            value={addForm.notes}
+            onChange={(e) => setAddForm((f) => ({ ...f, notes: e.target.value }))}
+            placeholder="Optional notes"
+          />
+        </div>
+        <div className="flex gap-3 justify-end mt-4">
+          <Button variant="secondary" onClick={() => setAddOpen(false)} disabled={adding}>
+            Cancel
+          </Button>
+          <Button onClick={handleDirectAdd} loading={adding} disabled={!addForm.customer_name.trim()}>
+            <Plus className="w-4 h-4" /> Add to Queue
+          </Button>
+        </div>
       </Modal>
     </div>
   );

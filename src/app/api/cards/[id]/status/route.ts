@@ -9,8 +9,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { user } = ctx;
 
-  const { status } = await req.json();
-  const validStatuses: DeliveryStatus[] = ['draft', 'driver_needed', 'driver_booked', 'loaded'];
+  const { status, delivery_notes } = await req.json();
+  const validStatuses: DeliveryStatus[] = ['draft', 'driver_needed', 'driver_booked', 'loaded', 'delivered'];
   if (!validStatuses.includes(status)) {
     return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
   }
@@ -25,9 +25,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   if (!existing) return NextResponse.json({ error: 'Card not found' }, { status: 404 });
 
+  const updateData: Record<string, unknown> = { status };
+  if (status === 'delivered') {
+    updateData.delivered_at = new Date().toISOString();
+    if (delivery_notes !== undefined) {
+      updateData.delivery_notes = delivery_notes || null;
+    }
+  }
+
   const { data: card, error } = await admin
     .from('delivery_cards')
-    .update({ status })
+    .update(updateData)
     .eq('id', params.id)
     .select()
     .single();
@@ -40,6 +48,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     driver_needed: 'status_driver_needed',
     driver_booked: 'status_driver_booked',
     loaded: 'status_loaded',
+    delivered: 'status_delivered',
   };
   const notifType = notifMap[status as DeliveryStatus];
   if (notifType) {

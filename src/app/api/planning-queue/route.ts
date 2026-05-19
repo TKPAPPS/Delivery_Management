@@ -8,6 +8,7 @@ export async function GET() {
   const { data: items, error } = await ctx.supabase
     .from('planning_queue')
     .select('*')
+    .order('sort_order', { ascending: true })
     .order('created_at', { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

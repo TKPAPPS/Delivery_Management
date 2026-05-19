@@ -2,7 +2,7 @@ import { createSupabaseServerClient } from '@/lib/supabase-server';
 import StatCard from '@/components/dashboard/StatCard';
 import UpcomingDeliveries from '@/components/dashboard/UpcomingDeliveries';
 import RecentCards from '@/components/dashboard/RecentCards';
-import { LayoutDashboard, Truck, CheckSquare, AlertTriangle, Clock } from 'lucide-react';
+import { LayoutDashboard, Truck, CheckSquare, AlertTriangle, Clock, CheckCircle2 } from 'lucide-react';
 import NewCardButton from '@/components/dashboard/NewCardButton';
 import type { DeliveryCard } from '@/types';
 
@@ -25,10 +25,17 @@ export default async function DashboardPage() {
     driver_needed: allCards.filter((c) => c.status === 'driver_needed').length,
     driver_booked: allCards.filter((c) => c.status === 'driver_booked').length,
     loaded: allCards.filter((c) => c.status === 'loaded').length,
-    urgent: allCards.filter((c) => c.priority === 'urgent').length,
+    urgent: allCards.filter((c) => c.priority === 'urgent' && c.status !== 'delivered').length,
   };
 
   const today = new Date();
+  const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
+  const { data: deliveredRows } = await supabase
+    .from('delivery_cards')
+    .select('id')
+    .eq('status', 'delivered')
+    .gte('updated_at', startOfMonth);
+  const deliveredThisMonth = deliveredRows?.length ?? 0;
   const in14Days = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000);
   const todayStr = today.toISOString().split('T')[0];
   const in14DaysStr = in14Days.toISOString().split('T')[0];
@@ -56,12 +63,13 @@ export default async function DashboardPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
         <StatCard title="Draft" value={counts.draft} icon={LayoutDashboard} color="gray" href="/board" />
         <StatCard title="Driver Needed" value={counts.driver_needed} icon={AlertTriangle} color="amber" href="/board" />
         <StatCard title="Driver Booked" value={counts.driver_booked} icon={Truck} color="blue" href="/board" />
         <StatCard title="Loaded" value={counts.loaded} icon={CheckSquare} color="green" href="/board" />
         <StatCard title="Urgent" value={counts.urgent} icon={AlertTriangle} color="red" href="/board" />
+        <StatCard title="Delivered This Month" value={deliveredThisMonth} icon={CheckCircle2} color="green" href="/archive" subtitle="completed" />
       </div>
 
       {/* Main grid */}

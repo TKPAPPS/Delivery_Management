@@ -1,6 +1,6 @@
 import { cn, formatDate } from '@/lib/utils';
 import type { DeliveryCardWithCustomers } from '@/types';
-import { MessageSquare, Paperclip, Truck, AlertTriangle, PackageOpen } from 'lucide-react';
+import { MessageSquare, Paperclip, Truck, AlertTriangle, PackageOpen, Clock } from 'lucide-react';
 import Link from 'next/link';
 
 interface DeliveryCardPreviewProps {
@@ -14,13 +14,20 @@ export default function DeliveryCardPreview({ card, dragging }: DeliveryCardPrev
   const driverName = card.driver?.name ?? card.driver_name_manual ?? null;
   const customerNames = card.customers.map((c) => c.customer_name);
 
+  const daysWaiting =
+    card.status === 'driver_needed' && card.status_changed_at
+      ? Math.floor((Date.now() - new Date(card.status_changed_at).getTime()) / 86_400_000)
+      : 0;
+  const isStuck = daysWaiting >= 2;
+
   return (
     <Link href={`/cards/${card.id}`}>
       <div
         className={cn(
           'bg-white rounded-lg border border-slate-200 p-3 cursor-pointer hover:border-crimson-300 transition-all',
           dragging && 'shadow-lg rotate-1 border-crimson-400',
-          card.priority === 'urgent' && 'border-l-4 border-l-crimson-700'
+          card.priority === 'urgent' && 'border-l-4 border-l-crimson-700',
+          isStuck && card.priority !== 'urgent' && 'border-l-4 border-l-amber-400'
         )}
       >
         {/* Top row */}
@@ -103,6 +110,12 @@ export default function DeliveryCardPreview({ card, dragging }: DeliveryCardPrev
               <span className="flex items-center gap-1 text-xs text-amber-600">
                 <PackageOpen className="w-3 h-3" />
                 Partial
+              </span>
+            )}
+            {isStuck && (
+              <span className="flex items-center gap-1 text-xs text-amber-600 font-medium">
+                <Clock className="w-3 h-3" />
+                {daysWaiting}d waiting
               </span>
             )}
           </div>

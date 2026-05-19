@@ -13,6 +13,7 @@ interface ArchiveCard {
   planned_date: string | null;
   archived_at: string | null;
   created_at: string;
+  delivered_at: string | null;
   customers: Array<{ customer_name: string; sale_orders: Array<{ sale_order_number: string }> }>;
 }
 
@@ -106,7 +107,7 @@ export default function ArchiveClient({ cards }: ArchiveClientProps) {
                       <p className="text-slate-500">{formatDate(card.planned_date)}</p>
                     )}
                     {isDelivered ? (
-                      <p>Delivered {formatDate(card.created_at)}</p>
+                      <p>Delivered {card.delivered_at ? formatDate(card.delivered_at) : formatDate(card.created_at)}</p>
                     ) : card.archived_at ? (
                       <p>Archived {formatDate(card.archived_at)}</p>
                     ) : null}

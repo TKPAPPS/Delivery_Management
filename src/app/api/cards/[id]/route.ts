@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser, createSupabaseAdminClient } from '@/lib/supabase-server';
 import { logActivity, ACTIONS } from '@/lib/activity';
+import { sendNotification } from '@/lib/notifications';
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const ctx = await getSessionUser();
@@ -62,6 +63,21 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     await logActivity(params.id, user.id, ACTIONS.CARD_ARCHIVED);
   } else if (body.driver_id !== undefined || body.driver_name_manual !== undefined) {
     await logActivity(params.id, user.id, ACTIONS.DRIVER_UPDATED);
+    // Fire notification when a driver is newly assigned (wasn't set before)
+    const wasUnassigned = !existing.driver_id && !existing.driver_name_manual;
+    const isNowAssigned = body.driver_id || body.driver_name_manual;
+    if (wasUnassigned && isNowAssigned) {
+      let driverName = body.driver_name_manual ?? null;
+      if (body.driver_id && !driverName) {
+        const { data: driver } = await admin.from('drivers').select('name').eq('id', body.driver_id).single();
+        driverName = driver?.name ?? null;
+      }
+      void sendNotification('driver_assigned', params.id, {
+        deliveryRef: existing.delivery_ref,
+        destination: existing.destination,
+        driverName: driverName ?? 'Unknown',
+      });
+    }
   } else {
     await logActivity(params.id, user.id, ACTIONS.CARD_UPDATED, { changes: Object.keys(body) });
   }

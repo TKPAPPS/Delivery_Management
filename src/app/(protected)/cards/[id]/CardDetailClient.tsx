@@ -15,7 +15,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useToastStore } from '@/store/toastStore';
 import { formatDate, statusColor, statusLabel } from '@/lib/utils';
 import DestinationInput from '@/components/ui/DestinationInput';
-import { ArrowLeft, AlertTriangle, Archive, Plus, Pencil, X, Check } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, Archive, Plus, Pencil, X, Check, Printer } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -34,6 +34,8 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
   const [archiving, setArchiving] = useState(false);
   const [unarchiving, setUnarchiving] = useState(false);
   const [markingDelivered, setMarkingDelivered] = useState(false);
+  const [showDeliveredForm, setShowDeliveredForm] = useState(false);
+  const [deliveryNotes, setDeliveryNotes] = useState('');
 
   // Edit mode state
   const [editing, setEditing] = useState(false);
@@ -88,7 +90,7 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
       const res = await fetch(`/api/cards/${card.id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'delivered' }),
+        body: JSON.stringify({ status: 'delivered', delivery_notes: deliveryNotes || null }),
       });
       if (!res.ok) throw new Error('Failed to mark as delivered');
       addToast('Delivery completed — card moved to History', 'success');
@@ -231,6 +233,11 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
                     {card.internal_notes}
                   </p>
                 )}
+                {card.delivery_notes && (
+                  <p className="text-sm text-teal-700 mt-2 bg-teal-50 rounded-lg px-3 py-2 border border-teal-200">
+                    <span className="font-medium">Delivery note:</span> {card.delivery_notes}
+                  </p>
+                )}
               </>
             )}
           </div>
@@ -256,6 +263,13 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
               </>
             ) : (
               <>
+                <Link
+                  href={`/cards/${card.id}/print`}
+                  target="_blank"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm font-medium text-slate-500 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+                >
+                  <Printer className="w-4 h-4" />
+                </Link>
                 {!card.is_archived && (
                   <Button
                     variant="outline"
@@ -315,20 +329,56 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
 
       {/* Loaded — mark as delivered CTA */}
       {card.status === 'loaded' && !card.is_archived && (
-        <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 mb-6 flex items-center justify-between gap-4">
-          <div>
-            <p className="font-semibold text-teal-800 text-sm">Delivery is loaded — ready to go</p>
-            <p className="text-xs text-teal-600 mt-0.5">Once the delivery has been completed, mark it as delivered.</p>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleMarkDelivered}
-            loading={markingDelivered}
-            className="flex-shrink-0 border-teal-400 text-teal-700 hover:bg-teal-100 font-semibold"
-          >
-            ✓ Mark as Delivered
-          </Button>
+        <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 mb-6">
+          {!showDeliveredForm ? (
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="font-semibold text-teal-800 text-sm">Delivery is loaded — ready to go</p>
+                <p className="text-xs text-teal-600 mt-0.5">Once delivered, mark it as completed to move it to History.</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowDeliveredForm(true)}
+                className="flex-shrink-0 border-teal-400 text-teal-700 hover:bg-teal-100 font-semibold"
+              >
+                ✓ Mark as Delivered
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="font-semibold text-teal-800 text-sm">Confirm delivery completion</p>
+              <div>
+                <label className="block text-xs font-medium text-teal-700 mb-1">Delivery notes (optional)</label>
+                <textarea
+                  value={deliveryNotes}
+                  onChange={(e) => setDeliveryNotes(e.target.value)}
+                  rows={2}
+                  placeholder="e.g. Received by warehouse manager, receipt #1234"
+                  className="w-full text-sm border border-teal-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none bg-white"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={handleMarkDelivered}
+                  loading={markingDelivered}
+                  className="bg-teal-600 hover:bg-teal-700 text-white border-none"
+                >
+                  ✓ Confirm Delivery
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => { setShowDeliveredForm(false); setDeliveryNotes(''); }}
+                  disabled={markingDelivered}
+                  className="text-teal-700"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -394,8 +444,8 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
         onClose={() => setArchiveOpen(false)}
         onConfirm={handleArchive}
         title="Archive Card"
-        message="Archive this delivery card? It will be moved to the archive and hidden from the board."
-        confirmLabel="Archive"
+        message="Use Archive for cancelled or abandoned deliveries. For completed deliveries, use 'Mark as Delivered' instead. Archive will hide this card from the board and move it to History."
+        confirmLabel="Archive (Abandon)"
         loading={archiving}
       />
     </div>

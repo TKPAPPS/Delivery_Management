@@ -5,6 +5,8 @@ export type NotificationType =
   | 'status_driver_needed'
   | 'status_driver_booked'
   | 'status_loaded'
+  | 'status_delivered'
+  | 'driver_assigned'
   | 'urgent_card_created';
 
 interface NotificationPayload {
@@ -13,6 +15,7 @@ interface NotificationPayload {
   status?: string;
   priority?: string;
   plannedDate?: string;
+  driverName?: string;
   [key: string]: unknown;
 }
 
@@ -96,6 +99,10 @@ function buildMessage(type: NotificationType, payload: NotificationPayload): str
       return `\nDriver booked\n${ref} - ${dest}${date}`;
     case 'status_loaded':
       return `\nLoaded and ready\n${ref} - ${dest}${date}`;
+    case 'status_delivered':
+      return `\nDelivery completed\n${ref} - ${dest}${date}`;
+    case 'driver_assigned':
+      return `\nDriver assigned\n${ref} - ${dest}\nDriver: ${payload.driverName ?? 'Unknown'}`;
     default:
       return `\nDelivery update: ${type}\n${ref} - ${dest}`;
   }

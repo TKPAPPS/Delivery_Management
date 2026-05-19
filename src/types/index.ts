@@ -54,6 +54,7 @@ export interface DeliveryCard {
   status_changed_at: string;
   priority: DeliveryPriority;
   internal_notes: string | null;
+  delivery_notes: string | null;
   driver_id: string | null;
   driver_name_manual: string | null;
   driver_phone_manual: string | null;
@@ -64,6 +65,7 @@ export interface DeliveryCard {
   updated_at: string;
   is_archived: boolean;
   archived_at: string | null;
+  delivered_at: string | null;
 }
 
 export interface DeliveryCustomer {
@@ -144,6 +146,7 @@ export interface PlanningQueueItem {
   extra_items: Array<{ item_name: string; quantity?: string }>;
   notes: string | null;
   reason: string | null;
+  sort_order: number;
   created_by: string | null;
   created_at: string;
 }
