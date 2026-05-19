@@ -155,7 +155,39 @@ export default function DriverSection({ card, drivers, onUpdated }: DriverSectio
               </a>
             </p>
           )}
-          {!form.driver_id && (
+
+          {form.driver_id ? (
+            // Show read-only preview of the selected roster driver's details
+            (() => {
+              const d = drivers.find((dr) => dr.id === form.driver_id);
+              if (!d) return null;
+              return (
+                <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 space-y-1">
+                  {d.phone && (
+                    <div className="flex gap-4 text-sm">
+                      <span className="text-slate-500 w-20 flex-shrink-0">Phone</span>
+                      <span className="text-slate-700">{d.phone}</span>
+                    </div>
+                  )}
+                  {d.vehicle_type && (
+                    <div className="flex gap-4 text-sm">
+                      <span className="text-slate-500 w-20 flex-shrink-0">Vehicle</span>
+                      <span className="text-slate-700">{d.vehicle_type}</span>
+                    </div>
+                  )}
+                  {d.license_plate && (
+                    <div className="flex gap-4 text-sm">
+                      <span className="text-slate-500 w-20 flex-shrink-0">Plate</span>
+                      <span className="text-slate-700 font-mono">{d.license_plate}</span>
+                    </div>
+                  )}
+                  {!d.phone && !d.vehicle_type && !d.license_plate && (
+                    <p className="text-xs text-slate-400">No additional details on file for this driver.</p>
+                  )}
+                </div>
+              );
+            })()
+          ) : (
             <>
               <Input
                 label="Driver Name"
