@@ -1,7 +1,10 @@
 export type UserRole = 'admin' | 'sales' | 'stock_manager' | 'logistics';
 export type DeliveryStatus = 'draft' | 'pending_booking' | 'booked' | 'in_transit' | 'delivered';
+export type DeliveryMethod = 'car' | 'post' | 'air' | 'other';
 export type DeliveryPriority = 'normal' | 'urgent';
 export type NotificationStatus = 'pending' | 'sent' | 'failed' | 'skipped';
+export type CommChannel = 'line' | 'email';
+export type CommStatus = 'sent' | 'failed' | 'skipped';
 
 export interface Profile {
   id: string;
@@ -24,6 +27,7 @@ export interface Destination {
 export interface CustomerDirectory {
   id: string;
   name: string;
+  email: string | null;
   contact_number: string | null;
   full_address: string | null;
   default_delivery_location: string | null;
@@ -31,6 +35,45 @@ export interface CustomerDirectory {
   active: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface CourierCompany {
+  id: string;
+  name: string;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CargoCompany {
+  id: string;
+  name: string;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LineGroup {
+  id: string;
+  name: string;
+  notify_token: string | null;
+  auto_triggers: string[];
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CommunicationEvent {
+  id: string;
+  delivery_card_id: string | null;
+  channel: CommChannel;
+  recipient: string | null;
+  subject: string | null;
+  body: string | null;
+  status: CommStatus;
+  error: string | null;
+  sent_by: string | null;
+  created_at: string;
 }
 
 export interface Driver {
@@ -53,13 +96,28 @@ export interface DeliveryCard {
   status: DeliveryStatus;
   status_changed_at: string;
   priority: DeliveryPriority;
+  delivery_method: DeliveryMethod;
   internal_notes: string | null;
   delivery_notes: string | null;
+  // Car
   driver_id: string | null;
   driver_name_manual: string | null;
   driver_phone_manual: string | null;
   vehicle_type_manual: string | null;
   license_plate_manual: string | null;
+  // Post / Courier
+  courier_name: string | null;
+  tracking_number: string | null;
+  // Air Freight
+  cargo_company_name: string | null;
+  mawb: string | null;
+  hawb: string | null;
+  flight_number: string | null;
+  etd: string | null;
+  eta: string | null;
+  // Other
+  other_method_name: string | null;
+  other_reference: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;

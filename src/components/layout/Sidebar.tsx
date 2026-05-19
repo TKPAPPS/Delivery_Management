@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Columns, History, Users, Truck, ClipboardList, BookUser, Settings, X } from 'lucide-react';
+import { LayoutDashboard, Columns, History, Users, Truck, ClipboardList, BookUser, Settings, X, Mail, Plane, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SidebarProps {
@@ -20,6 +20,9 @@ const adminNav = [
   { href: '/admin/users', label: 'Users', icon: Users },
   { href: '/admin/customers', label: 'Customers', icon: BookUser },
   { href: '/admin/drivers', label: 'Drivers', icon: Truck },
+  { href: '/admin/courier-companies', label: 'Couriers', icon: Mail },
+  { href: '/admin/cargo-companies', label: 'Cargo Co.', icon: Plane },
+  { href: '/admin/communications', label: 'Communications', icon: MessageSquare },
   { href: '/admin/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -73,6 +76,7 @@ export default function Sidebar({ role, onNavClick }: SidebarProps) {
               {adminNav
                 .filter((item) => {
                   if (item.href === '/admin/users') return role === 'admin';
+                  if (item.href === '/admin/communications') return role === 'admin';
                   return true;
                 })
                 .map((item) => <NavItem key={item.href} {...item} />)}

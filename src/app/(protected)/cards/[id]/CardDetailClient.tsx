@@ -5,7 +5,8 @@ import type { DeliveryCardFull, DeliveryCard, Driver, DeliveryStatus } from '@/t
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import StatusDropdown from '@/components/cards/StatusDropdown';
-import DriverSection from '@/components/cards/DriverSection';
+import LogisticsSection from '@/components/cards/LogisticsSection';
+import CommunicationPanel from '@/components/cards/CommunicationPanel';
 import CustomerSection from '@/components/cards/CustomerSection';
 import AddCustomerForm from '@/components/cards/AddCustomerForm';
 import CommentThread from '@/components/cards/CommentThread';
@@ -382,9 +383,9 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
         </div>
       )}
 
-      {/* Driver Section */}
+      {/* Logistics Section */}
       <div className="mb-6">
-        <DriverSection card={card} drivers={drivers} onUpdated={handleCardUpdated} />
+        <LogisticsSection card={card} drivers={drivers} onUpdated={handleCardUpdated} />
       </div>
 
       {/* Customers Section */}
@@ -432,6 +433,11 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
           attachments={card.attachments}
           onRefresh={refresh}
         />
+      </div>
+
+      {/* Communications */}
+      <div className="mb-6">
+        <CommunicationPanel card={card} customers={card.customers} />
       </div>
 
       {/* Activity Log */}

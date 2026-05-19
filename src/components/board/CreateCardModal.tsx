@@ -25,7 +25,7 @@ interface CreateCardModalProps {
   onCreated: () => void;
 }
 
-const EMPTY_FORM = { destination: '', status: 'draft', planned_date: '', priority: 'normal', internal_notes: '' };
+const EMPTY_FORM = { destination: '', status: 'draft', planned_date: '', priority: 'normal', internal_notes: '', delivery_method: 'car' };
 const EMPTY_CUSTOMER: InlineCustomer = { customer_name: '', delivery_location: '', sale_orders: [''] };
 
 export default function CreateCardModal({ open, onClose, onCreated }: CreateCardModalProps) {
@@ -125,6 +125,17 @@ export default function CreateCardModal({ open, onClose, onCreated }: CreateCard
           onChange={(v) => setForm((f) => ({ ...f, destination: v }))}
           required
         />
+        <Select
+          label="Delivery Method"
+          value={form.delivery_method}
+          onChange={(e) => setForm((f) => ({ ...f, delivery_method: e.target.value }))}
+          options={[
+            { value: 'car', label: 'Car / Truck' },
+            { value: 'post', label: 'Post / Courier' },
+            { value: 'air', label: 'Air Freight' },
+            { value: 'other', label: 'Other' },
+          ]}
+        />
         <div className="grid grid-cols-2 gap-4">
           <Select
             label="Status"
@@ -132,7 +143,7 @@ export default function CreateCardModal({ open, onClose, onCreated }: CreateCard
             onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
             options={[
               { value: 'draft', label: 'Draft' },
-              { value: 'driver_needed', label: 'Driver Needed' },
+              { value: 'pending_booking', label: 'Pending Booking' },
             ]}
           />
           <Select

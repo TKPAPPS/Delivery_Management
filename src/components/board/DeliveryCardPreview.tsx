@@ -1,6 +1,14 @@
 import { cn, formatDate } from '@/lib/utils';
 import type { DeliveryCardWithCustomers } from '@/types';
-import { MessageSquare, Paperclip, Truck, AlertTriangle, PackageOpen, Clock } from 'lucide-react';
+import { MessageSquare, Paperclip, Truck, Mail, Plane, Package, AlertTriangle, PackageOpen, Clock } from 'lucide-react';
+import type { DeliveryMethod } from '@/types';
+
+const METHOD_ICONS: Record<DeliveryMethod, React.ElementType> = {
+  car: Truck,
+  post: Mail,
+  air: Plane,
+  other: Package,
+};
 import Link from 'next/link';
 
 interface DeliveryCardPreviewProps {
@@ -11,7 +19,16 @@ interface DeliveryCardPreviewProps {
 export default function DeliveryCardPreview({ card, dragging }: DeliveryCardPreviewProps) {
   const allSOs = card.customers.flatMap((c) => c.sale_orders.map((so) => so.sale_order_number));
   const hasPartial = card.customers.some((c) => c.partial_shipment);
+  const method = card.delivery_method ?? 'car';
+  const MethodIcon = METHOD_ICONS[method as DeliveryMethod];
   const driverName = card.driver?.name ?? card.driver_name_manual ?? null;
+  const logisticsLine = (() => {
+    if (method === 'car') return driverName;
+    if (method === 'post') return card.courier_name ?? card.tracking_number ?? null;
+    if (method === 'air') return card.cargo_company_name ?? card.flight_number ?? null;
+    if (method === 'other') return card.other_method_name ?? null;
+    return null;
+  })();
   const customerNames = card.customers.map((c) => c.customer_name);
 
   const daysWaiting =
@@ -83,11 +100,11 @@ export default function DeliveryCardPreview({ card, dragging }: DeliveryCardPrev
           </div>
         )}
 
-        {/* Driver */}
-        {driverName && (
+        {/* Logistics line */}
+        {logisticsLine && (
           <div className="flex items-center gap-1 text-xs text-gold-700 mb-2">
-            <Truck className="w-3 h-3" />
-            <span className="truncate">{driverName}</span>
+            <MethodIcon className="w-3 h-3 flex-shrink-0" />
+            <span className="truncate">{logisticsLine}</span>
           </div>
         )}
 
