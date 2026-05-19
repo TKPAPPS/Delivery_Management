@@ -95,8 +95,26 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   }
 
   const admin = createSupabaseAdminClient();
+
+  // Collect attachment storage paths before deleting the card
+  const { data: attachments } = await admin
+    .from('attachments')
+    .select('storage_path')
+    .eq('delivery_card_id', params.id);
+
   const { error } = await admin.from('delivery_cards').delete().eq('id', params.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Clean up storage files — best-effort after successful DB delete
+  if (attachments && attachments.length > 0) {
+    const paths = attachments.map((a: { storage_path: string }) => a.storage_path);
+    const { error: storageError } = await admin.storage
+      .from('delivery-attachments')
+      .remove(paths);
+    if (storageError) {
+      console.error('[cards/delete] Storage cleanup failed for card', params.id, storageError.message);
+    }
+  }
 
   return NextResponse.json({ success: true });
 }

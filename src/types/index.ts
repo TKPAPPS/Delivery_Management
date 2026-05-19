@@ -56,7 +56,7 @@ export interface CargoCompany {
 export interface LineGroup {
   id: string;
   name: string;
-  notify_token: string | null;
+  line_target_id: string | null;
   auto_triggers: string[];
   active: boolean;
   created_at: string;
@@ -165,6 +165,7 @@ export interface Attachment {
   storage_path: string;
   uploaded_by: string;
   created_at: string;
+  signed_url?: string | null;
 }
 
 export interface Comment {

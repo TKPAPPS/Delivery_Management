@@ -38,7 +38,7 @@ export async function sendNotification(
     .single();
 
   if (insertError || !event) {
-    console.error('Failed to insert notification event:', insertError);
+    console.error('[notifications] Failed to insert notification event:', insertError);
     return;
   }
 
@@ -46,71 +46,84 @@ export async function sendNotification(
   let status: 'sent' | 'failed' | 'skipped' = 'skipped';
   let error: string | null = null;
 
-  const lineToken = process.env.LINE_NOTIFY_TOKEN;
+  const lineToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+  const lineTargetId = process.env.LINE_DEFAULT_TARGET_ID;
   const resendKey = process.env.RESEND_API_KEY;
-  const resendFrom = process.env.RESEND_FROM_EMAIL ?? 'notifications@delivery.local';
+  const resendFrom = process.env.RESEND_FROM_EMAIL;
   const resendTo = process.env.NOTIFICATION_EMAIL;
 
+  // Warn when nothing is configured at all
   if (!lineToken && !resendKey) {
-    console.warn(
-      '[notifications] No LINE_NOTIFY_TOKEN or RESEND_API_KEY configured — notification skipped.'
-    );
+    console.warn('[notifications] No LINE_CHANNEL_ACCESS_TOKEN or RESEND_API_KEY configured — notification skipped.');
   }
 
-  // Primary: LINE Notify
+  // Primary: LINE Messaging API
   if (lineToken) {
-    try {
-      const res = await fetch('https://notify-api.line.me/api/notify', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${lineToken}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({ message }),
-      });
-      if (res.ok) {
-        status = 'sent';
-      } else {
-        const text = await res.text();
-        error = `LINE Notify error: ${res.status} ${text}`;
+    if (!lineTargetId) {
+      console.warn('[notifications] LINE_CHANNEL_ACCESS_TOKEN set but LINE_DEFAULT_TARGET_ID missing — LINE skipped.');
+    } else {
+      try {
+        const res = await fetch('https://api.line.me/v2/bot/message/push', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${lineToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            to: lineTargetId,
+            messages: [{ type: 'text', text: message }],
+          }),
+        });
+        if (res.ok) {
+          status = 'sent';
+        } else {
+          const body = await res.json().catch(() => ({})) as { message?: string };
+          error = `LINE API error: ${res.status}${body.message ? ` — ${body.message}` : ''}`;
+          status = 'failed';
+        }
+      } catch (err) {
+        error = `LINE API exception: ${err instanceof Error ? err.message : String(err)}`;
         status = 'failed';
       }
-    } catch (err) {
-      error = `LINE Notify exception: ${err instanceof Error ? err.message : String(err)}`;
-      status = 'failed';
     }
   }
 
-  // Fallback: Resend email (only if LINE was not sent successfully)
-  if (status !== 'sent' && resendKey && resendTo) {
-    try {
-      const subject = buildSubject(type, payload);
-      const res = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${resendKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from: resendFrom,
-          to: [resendTo],
-          subject,
-          text: message,
-        }),
-      });
-      if (res.ok) {
-        status = 'sent';
-        error = null;
-      } else {
-        const text = await res.text();
-        const resendError = `Resend error: ${res.status} ${text}`;
+  // Fallback: Resend email (only if LINE did not succeed)
+  if (status !== 'sent' && resendKey) {
+    if (!resendFrom) {
+      console.warn('[notifications] RESEND_API_KEY set but RESEND_FROM_EMAIL missing — email skipped.');
+    } else if (!resendTo) {
+      console.warn('[notifications] RESEND_API_KEY set but NOTIFICATION_EMAIL missing — email skipped.');
+    } else {
+      try {
+        const subject = buildSubject(type, payload);
+        const res = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${resendKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            from: resendFrom,
+            to: [resendTo],
+            subject,
+            text: message,
+          }),
+        });
+        if (res.ok) {
+          status = 'sent';
+          error = null;
+        } else {
+          const text = await res.text();
+          const resendError = `Resend error: ${res.status} ${text}`;
+          error = error ? `${error} | ${resendError}` : resendError;
+          status = 'failed';
+        }
+      } catch (err) {
+        const resendError = `Resend exception: ${err instanceof Error ? err.message : String(err)}`;
         error = error ? `${error} | ${resendError}` : resendError;
         status = 'failed';
       }
-    } catch (err) {
-      const resendError = `Resend exception: ${err instanceof Error ? err.message : String(err)}`;
-      error = error ? `${error} | ${resendError}` : resendError;
-      status = 'failed';
     }
   }
 
@@ -145,20 +158,20 @@ function buildMessage(type: NotificationType, payload: NotificationPayload): str
 
   switch (type) {
     case 'card_created':
-      return `\nNew delivery card created\n${ref} - ${dest}${date}`;
+      return `New delivery card created\n${ref} - ${dest}${date}`;
     case 'urgent_card_created':
-      return `\n[URGENT] New urgent delivery card\n${ref} - ${dest}${date}`;
+      return `[URGENT] New urgent delivery card\n${ref} - ${dest}${date}`;
     case 'status_pending_booking':
-      return `\nPending booking\n${ref} - ${dest}${date}`;
+      return `Pending booking\n${ref} - ${dest}${date}`;
     case 'status_booked':
-      return `\nBooked and confirmed\n${ref} - ${dest}${date}`;
+      return `Booked and confirmed\n${ref} - ${dest}${date}`;
     case 'status_in_transit':
-      return `\nIn transit\n${ref} - ${dest}${date}`;
+      return `In transit\n${ref} - ${dest}${date}`;
     case 'status_delivered':
-      return `\nDelivery completed\n${ref} - ${dest}${date}`;
+      return `Delivery completed\n${ref} - ${dest}${date}`;
     case 'driver_assigned':
-      return `\nDriver assigned\n${ref} - ${dest}\nDriver: ${payload.driverName ?? 'Unknown'}`;
+      return `Driver assigned\n${ref} - ${dest}\nDriver: ${payload.driverName ?? 'Unknown'}`;
     default:
-      return `\nDelivery update: ${type}\n${ref} - ${dest}`;
+      return `Delivery update: ${type}\n${ref} - ${dest}`;
   }
 }

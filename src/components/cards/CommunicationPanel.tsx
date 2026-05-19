@@ -5,7 +5,7 @@ import type { CommunicationEvent, LineGroup, DeliveryCard, CustomerWithRelations
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import Select from '@/components/ui/Select';
-import { MessageSquare, Mail, Send, CheckCircle, XCircle, MinusCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { MessageSquare, Mail, Send, FileText, CheckCircle, XCircle, MinusCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { useToastStore } from '@/store/toastStore';
 import { formatDateTime } from '@/lib/utils';
 
@@ -26,11 +26,13 @@ export default function CommunicationPanel({ card, customers }: CommunicationPan
   const [lineGroups, setLineGroups] = useState<LineGroup[]>([]);
   const [lineOpen, setLineOpen] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
+  const [summaryOpen, setSummaryOpen] = useState(false);
   const [showLog, setShowLog] = useState(false);
   const [sending, setSending] = useState(false);
 
   const [lineForm, setLineForm] = useState({ group_id: '', message: '' });
   const [emailForm, setEmailForm] = useState({ recipient: '', subject: '', body: '' });
+  const [summaryForm, setSummaryForm] = useState({ to: '', subject: '' });
 
   useEffect(() => {
     fetch(`/api/communications?card_id=${card.id}`)
@@ -51,16 +53,20 @@ export default function CommunicationPanel({ card, customers }: CommunicationPan
   };
 
   const openEmail = () => {
-    const firstEmail = customers.find((c) => {
-      const cd = (c as unknown as { email?: string }).email;
-      return !!cd;
-    });
     setEmailForm({
       recipient: '',
       subject: `Delivery Confirmation — ${card.delivery_ref}`,
       body: `Dear Customer,\n\nYour delivery (${card.delivery_ref}) to ${card.destination} has been ${card.status === 'delivered' ? 'completed' : 'updated'}.\n\nPlease contact us if you have any questions.\n\nThank you.`,
     });
     setEmailOpen(true);
+  };
+
+  const openSummary = () => {
+    setSummaryForm({
+      to: '',
+      subject: `Delivery Summary — ${card.delivery_ref}`,
+    });
+    setSummaryOpen(true);
   };
 
   const sendLine = async () => {
@@ -80,7 +86,13 @@ export default function CommunicationPanel({ card, customers }: CommunicationPan
       });
       const data = await res.json();
       setEvents(prev => [data.event, ...prev]);
-      addToast(data.event.status === 'sent' ? 'LINE message sent' : data.event.status === 'skipped' ? 'Logged (no token configured)' : 'Failed to send LINE message', data.event.status === 'failed' ? 'error' : 'success');
+      if (data.event.status === 'sent') {
+        addToast('LINE message sent', 'success');
+      } else if (data.event.status === 'skipped') {
+        addToast(data.event.error ?? 'Logged (no LINE config)', 'info' as 'success');
+      } else {
+        addToast(data.event.error ?? 'Failed to send LINE message', 'error');
+      }
       setLineOpen(false);
     } catch {
       addToast('Failed to send', 'error');
@@ -106,8 +118,48 @@ export default function CommunicationPanel({ card, customers }: CommunicationPan
       });
       const data = await res.json();
       setEvents(prev => [data.event, ...prev]);
-      addToast(data.event.status === 'sent' ? 'Email sent' : data.event.status === 'skipped' ? 'Logged (no RESEND_API_KEY configured)' : 'Failed to send email', data.event.status === 'failed' ? 'error' : 'success');
+      if (data.event.status === 'sent') {
+        addToast('Email sent', 'success');
+      } else if (data.event.status === 'skipped') {
+        addToast(data.event.error ?? 'Logged (no email config)', 'info' as 'success');
+      } else {
+        addToast(data.event.error ?? 'Failed to send email', 'error');
+      }
       setEmailOpen(false);
+    } catch {
+      addToast('Failed to send', 'error');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const sendSummary = async () => {
+    if (!summaryForm.to.trim()) return;
+    setSending(true);
+    try {
+      const res = await fetch(`/api/cards/${card.id}/send-summary`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: summaryForm.to, subject: summaryForm.subject }),
+      });
+      const data = await res.json() as { status?: string; error?: string; attachments_linked?: number };
+      if (res.ok && data.status === 'sent') {
+        const attNote = data.attachments_linked && data.attachments_linked > 0
+          ? ` (${data.attachments_linked} attachment link${data.attachments_linked > 1 ? 's' : ''} included)`
+          : '';
+        addToast(`Summary email sent${attNote}`, 'success');
+        setSummaryOpen(false);
+        // Refresh event log
+        fetch(`/api/communications?card_id=${card.id}`)
+          .then(r => r.json())
+          .then(d => setEvents(d.events ?? []))
+          .catch(() => {});
+      } else if (data.status === 'skipped') {
+        addToast(data.error ?? 'Email not configured — summary logged', 'info' as 'success');
+        setSummaryOpen(false);
+      } else {
+        addToast(data.error ?? 'Failed to send summary', 'error');
+      }
     } catch {
       addToast('Failed to send', 'error');
     } finally {
@@ -134,12 +186,15 @@ export default function CommunicationPanel({ card, customers }: CommunicationPan
         </button>
       </div>
 
-      <div className="flex gap-2 mb-3">
-        <Button variant="outline" size="sm" onClick={openLine} className="flex-1">
+      <div className="flex gap-2 mb-3 flex-wrap">
+        <Button variant="outline" size="sm" onClick={openLine} className="flex-1 min-w-[120px]">
           <MessageSquare className="w-3.5 h-3.5" /> Send to LINE
         </Button>
-        <Button variant="outline" size="sm" onClick={openEmail} className="flex-1">
+        <Button variant="outline" size="sm" onClick={openEmail} className="flex-1 min-w-[120px]">
           <Mail className="w-3.5 h-3.5" /> Email Customer
+        </Button>
+        <Button variant="outline" size="sm" onClick={openSummary} className="flex-1 min-w-[120px]">
+          <FileText className="w-3.5 h-3.5" /> Email Summary
         </Button>
       </div>
 
@@ -155,8 +210,9 @@ export default function CommunicationPanel({ card, customers }: CommunicationPan
                   <span className="font-medium capitalize">{ev.channel}</span>
                   {ev.recipient && <span className="text-slate-400"> → {ev.recipient}</span>}
                   <span className="text-slate-400 ml-1">· {formatDateTime(ev.created_at)}</span>
+                  {ev.subject && <p className="text-slate-500 truncate mt-0.5 italic">{ev.subject}</p>}
                   {ev.error && <p className="text-red-500 text-xs mt-0.5 truncate">{ev.error}</p>}
-                  {ev.body && <p className="text-slate-500 truncate mt-0.5">{ev.body}</p>}
+                  {!ev.subject && ev.body && <p className="text-slate-500 truncate mt-0.5">{ev.body}</p>}
                 </div>
               </div>
             ))
@@ -173,7 +229,7 @@ export default function CommunicationPanel({ card, customers }: CommunicationPan
               value={lineForm.group_id}
               onChange={(e) => setLineForm(f => ({ ...f, group_id: e.target.value }))}
               options={[
-                { value: '', label: '— Default (LINE_NOTIFY_TOKEN) —' },
+                { value: '', label: '— Default (LINE_DEFAULT_TARGET_ID) —' },
                 ...lineGroups.filter(g => g.active).map(g => ({ value: g.id, label: g.name })),
               ]}
             />
@@ -188,7 +244,7 @@ export default function CommunicationPanel({ card, customers }: CommunicationPan
             />
           </div>
           <p className="text-xs text-slate-400">
-            {lineGroups.length === 0 && 'No LINE groups configured — message will use LINE_NOTIFY_TOKEN env var.'}
+            {lineGroups.length === 0 && 'No LINE groups configured — message will use LINE_DEFAULT_TARGET_ID env var.'}
           </p>
         </div>
         <div className="flex gap-3 justify-end mt-4">
@@ -199,7 +255,7 @@ export default function CommunicationPanel({ card, customers }: CommunicationPan
         </div>
       </Modal>
 
-      {/* Email Modal */}
+      {/* Email Customer Modal */}
       <Modal open={emailOpen} onClose={() => setEmailOpen(false)} title="Email Customer" size="sm">
         <div className="space-y-3">
           <div>
@@ -230,12 +286,46 @@ export default function CommunicationPanel({ card, customers }: CommunicationPan
               className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-crimson-500 resize-none"
             />
           </div>
-          <p className="text-xs text-slate-400">Sent via Resend. Requires RESEND_API_KEY env var.</p>
+          <p className="text-xs text-slate-400">Requires RESEND_API_KEY and RESEND_FROM_EMAIL env vars.</p>
         </div>
         <div className="flex gap-3 justify-end mt-4">
           <Button variant="secondary" onClick={() => setEmailOpen(false)} disabled={sending}>Cancel</Button>
           <Button onClick={sendEmail} loading={sending} disabled={!emailForm.recipient.trim() || !emailForm.body.trim()}>
             <Send className="w-4 h-4" /> Send Email
+          </Button>
+        </div>
+      </Modal>
+
+      {/* Email Summary Modal */}
+      <Modal open={summaryOpen} onClose={() => setSummaryOpen(false)} title="Email Delivery Summary" size="sm">
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">To (email address)</label>
+            <input
+              type="email"
+              value={summaryForm.to}
+              onChange={(e) => setSummaryForm(f => ({ ...f, to: e.target.value }))}
+              placeholder="recipient@example.com"
+              className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-crimson-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">Subject</label>
+            <input
+              type="text"
+              value={summaryForm.subject}
+              onChange={(e) => setSummaryForm(f => ({ ...f, subject: e.target.value }))}
+              className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-crimson-500"
+            />
+          </div>
+          <p className="text-xs text-slate-400">
+            Sends a full card summary including customers, logistics, notes, and 24-hour attachment links. Requires RESEND_API_KEY and RESEND_FROM_EMAIL.
+          </p>
+        </div>
+        <div className="flex gap-3 justify-end mt-4">
+          <Button variant="secondary" onClick={() => setSummaryOpen(false)} disabled={sending}>Cancel</Button>
+          <Button onClick={sendSummary} loading={sending} disabled={!summaryForm.to.trim()}>
+            <FileText className="w-4 h-4" /> Send Summary
           </Button>
         </div>
       </Modal>

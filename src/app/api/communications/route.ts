@@ -38,7 +38,6 @@ export async function POST(req: NextRequest) {
 
   const admin = createSupabaseAdminClient();
 
-  // Insert event log first
   const { data: event, error: insertErr } = await admin
     .from('communication_events')
     .insert({
@@ -61,31 +60,46 @@ export async function POST(req: NextRequest) {
   let error: string | null = null;
 
   if (channel === 'line') {
-    // Get the token for the requested group
-    let token: string | null = null;
+    const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+    let targetId: string | null = null;
+
     if (line_group_id) {
       const { data: grp } = await admin
         .from('line_groups')
-        .select('notify_token')
+        .select('line_target_id')
         .eq('id', line_group_id)
         .single();
-      token = grp?.notify_token ?? null;
+      targetId = (grp as { line_target_id: string | null } | null)?.line_target_id ?? null;
     } else {
-      token = process.env.LINE_NOTIFY_TOKEN ?? null;
+      targetId = process.env.LINE_DEFAULT_TARGET_ID ?? null;
     }
 
-    if (token) {
+    if (!token) {
+      error = 'LINE_CHANNEL_ACCESS_TOKEN not configured';
+      status = 'skipped';
+    } else if (!targetId) {
+      error = 'No LINE target ID configured for this group';
+      status = 'skipped';
+    } else {
       try {
-        const res = await fetch('https://notify-api.line.me/api/notify', {
+        const res = await fetch('https://api.line.me/v2/bot/message/push', {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/x-www-form-urlencoded',
+            'Content-Type': 'application/json',
           },
-          body: new URLSearchParams({ message: `\n${messageBody}` }),
+          body: JSON.stringify({
+            to: targetId,
+            messages: [{ type: 'text', text: messageBody ?? '' }],
+          }),
         });
-        status = res.ok ? 'sent' : 'failed';
-        if (!res.ok) error = `LINE error ${res.status}`;
+        if (res.ok) {
+          status = 'sent';
+        } else {
+          const body = await res.json().catch(() => ({})) as { message?: string };
+          error = `LINE API error: ${res.status}${body.message ? ` — ${body.message}` : ''}`;
+          status = 'failed';
+        }
       } catch (err) {
         status = 'failed';
         error = err instanceof Error ? err.message : String(err);
@@ -93,9 +107,18 @@ export async function POST(req: NextRequest) {
     }
   } else if (channel === 'email') {
     const apiKey = process.env.RESEND_API_KEY;
-    const fromEmail = process.env.RESEND_FROM_EMAIL ?? 'no-reply@example.com';
+    const fromEmail = process.env.RESEND_FROM_EMAIL;
 
-    if (apiKey && recipient) {
+    if (!apiKey) {
+      error = 'RESEND_API_KEY not configured';
+      status = 'skipped';
+    } else if (!fromEmail) {
+      error = 'RESEND_FROM_EMAIL not configured';
+      status = 'skipped';
+    } else if (!recipient) {
+      error = 'No recipient address provided';
+      status = 'skipped';
+    } else {
       try {
         const res = await fetch('https://api.resend.com/emails', {
           method: 'POST',
@@ -107,13 +130,15 @@ export async function POST(req: NextRequest) {
             from: fromEmail,
             to: [recipient],
             subject: subject ?? 'Delivery Update',
-            text: messageBody,
+            text: messageBody ?? '',
           }),
         });
-        status = res.ok ? 'sent' : 'failed';
-        if (!res.ok) {
+        if (res.ok) {
+          status = 'sent';
+        } else {
           const txt = await res.text();
           error = `Resend error ${res.status}: ${txt}`;
+          status = 'failed';
         }
       } catch (err) {
         status = 'failed';
@@ -122,7 +147,6 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Update event with final status
   await admin
     .from('communication_events')
     .update({ status, error })

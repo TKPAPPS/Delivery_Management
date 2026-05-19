@@ -22,9 +22,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const parsed = await parseBody<{ name: string; notify_token?: string; auto_triggers?: string[] }>(req);
+  const parsed = await parseBody<{ name: string; line_target_id?: string; auto_triggers?: string[] }>(req);
   if ('error' in parsed) return parsed.error;
-  const { name, notify_token, auto_triggers } = parsed.data;
+  const { name, line_target_id, auto_triggers } = parsed.data;
   if (!name?.trim()) return NextResponse.json({ error: 'Name is required' }, { status: 400 });
 
   const admin = createSupabaseAdminClient();
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     .from('line_groups')
     .insert({
       name: name.trim(),
-      notify_token: notify_token || null,
+      line_target_id: line_target_id || null,
       auto_triggers: auto_triggers ?? [],
     })
     .select()

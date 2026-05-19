@@ -18,7 +18,7 @@ const STATUS_TRIGGER_OPTIONS = [
   { value: 'urgent_card_created', label: 'Urgent Card Created' },
 ];
 
-const EMPTY_FORM = { name: '', notify_token: '', auto_triggers: [] as string[] };
+const EMPTY_FORM = { name: '', line_target_id: '', auto_triggers: [] as string[] };
 
 export default function CommunicationsPage() {
   const addToast = useToastStore((s) => s.addToast);
@@ -44,7 +44,7 @@ export default function CommunicationsPage() {
   const openCreate = () => { setEditItem(null); setForm(EMPTY_FORM); setModalOpen(true); };
   const openEdit = (g: LineGroup) => {
     setEditItem(g);
-    setForm({ name: g.name, notify_token: g.notify_token ?? '', auto_triggers: g.auto_triggers ?? [] });
+    setForm({ name: g.name, line_target_id: g.line_target_id ?? '', auto_triggers: g.auto_triggers ?? [] });
     setModalOpen(true);
   };
 
@@ -69,7 +69,7 @@ export default function CommunicationsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: form.name,
-          notify_token: form.notify_token || null,
+          line_target_id: form.line_target_id || null,
           auto_triggers: form.auto_triggers,
         }),
       });
@@ -105,13 +105,14 @@ export default function CommunicationsPage() {
           <Button onClick={openCreate}><Plus className="w-4 h-4" /> Add LINE Group</Button>
         </div>
       </div>
-      <p className="text-xs text-slate-400 mb-6">Configure LINE Notify groups. Tokens are stored securely and used server-side only.</p>
+      <p className="text-xs text-slate-400 mb-6">Configure LINE groups for push notifications via LINE Messaging API.</p>
 
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-6 flex items-start gap-2 text-xs text-amber-800">
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 flex items-start gap-2 text-xs text-amber-800">
         <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
-        <span>
-          <strong>Email:</strong> Set <code>RESEND_API_KEY</code> and <code>RESEND_FROM_EMAIL</code> in your environment variables to enable email sending. No config needed here.
-        </span>
+        <div className="space-y-1">
+          <p><strong>LINE setup:</strong> Set <code>LINE_CHANNEL_ACCESS_TOKEN</code> in environment variables. The LINE Target ID below is the group or user ID obtained from LINE webhook events when your bot joins a group.</p>
+          <p><strong>Email:</strong> Set <code>RESEND_API_KEY</code>, <code>RESEND_FROM_EMAIL</code>, and <code>NOTIFICATION_EMAIL</code> in environment variables.</p>
+        </div>
       </div>
 
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
@@ -119,7 +120,7 @@ export default function CommunicationsPage() {
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
               <th className="text-left px-4 py-3 font-semibold text-slate-600">Group Name</th>
-              <th className="text-left px-4 py-3 font-semibold text-slate-600">Token</th>
+              <th className="text-left px-4 py-3 font-semibold text-slate-600">LINE Target ID</th>
               <th className="text-left px-4 py-3 font-semibold text-slate-600 hidden md:table-cell">Auto Triggers</th>
               <th className="text-left px-4 py-3 font-semibold text-slate-600">Status</th>
               <th className="text-right px-4 py-3 font-semibold text-slate-600">Actions</th>
@@ -130,7 +131,9 @@ export default function CommunicationsPage() {
               <tr key={g.id} className="hover:bg-slate-50">
                 <td className="px-4 py-3 font-medium text-slate-900">{g.name}</td>
                 <td className="px-4 py-3 text-slate-500 font-mono text-xs">
-                  {g.notify_token ? '••••••••' + g.notify_token.slice(-4) : <span className="text-slate-300">not set</span>}
+                  {g.line_target_id
+                    ? g.line_target_id.slice(0, 6) + '••••' + g.line_target_id.slice(-4)
+                    : <span className="text-slate-300">not set</span>}
                 </td>
                 <td className="px-4 py-3 hidden md:table-cell">
                   {g.auto_triggers.length > 0 ? (
@@ -164,15 +167,17 @@ export default function CommunicationsPage() {
         <form onSubmit={handleSave} className="space-y-4">
           <Input label="Group Name *" value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Driver Dispatch" />
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">LINE Notify Token</label>
+            <label className="block text-xs font-medium text-slate-700 mb-1">LINE Target ID</label>
             <input
               type="password"
-              value={form.notify_token}
-              onChange={(e) => setForm(f => ({ ...f, notify_token: e.target.value }))}
-              placeholder="Paste your LINE Notify token here"
+              value={form.line_target_id}
+              onChange={(e) => setForm(f => ({ ...f, line_target_id: e.target.value }))}
+              placeholder="e.g. Ca56f94637c94dbe..."
               className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-crimson-500 font-mono"
             />
-            <p className="text-xs text-slate-400 mt-1">Leave blank to use the global LINE_NOTIFY_TOKEN env var.</p>
+            <p className="text-xs text-slate-400 mt-1">
+              The LINE group ID from your Messaging API webhook events. Requires <code>LINE_CHANNEL_ACCESS_TOKEN</code> env var.
+            </p>
           </div>
           <div>
             <p className="text-xs font-medium text-slate-700 mb-2">Auto-send on status changes</p>

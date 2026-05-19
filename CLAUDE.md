@@ -13,6 +13,7 @@ An internal logistics delivery coordination tool. Users create delivery cards th
 - **Zustand** for toast + modal state (`src/store/`)
 - **@supabase/ssr** for server/browser Supabase clients
 - **No Resend SDK** — email sent via Resend REST API using native `fetch`
+- **No LINE SDK** — LINE Messaging API called via native `fetch`
 
 ## Auth Flow
 
@@ -72,16 +73,48 @@ await logActivity(deliveryCardId, userId, ACTIONS.CARD_CREATED, { extra: 'data' 
 
 Common action constants are exported from `ACTIONS` in `src/lib/activity.ts`.
 
-## Notifications
+## Notifications (system-triggered)
 
-`src/lib/notifications.ts` handles LINE Notify and Resend email.
-- Always inserts a `notification_events` row first
-- Tries LINE Notify (primary) if `LINE_NOTIFY_TOKEN` is set
-- Falls back to Resend email if LINE failed/absent AND `RESEND_API_KEY` + `NOTIFICATION_EMAIL` are set
-- Logs a `console.warn` if neither channel is configured
-- Updates the event with final status ('sent', 'failed', 'skipped')
-- Never throws — all errors are caught
-- No Resend SDK — uses native `fetch` to `https://api.resend.com/emails`
+`src/lib/notifications.ts` sends automatic notifications on status changes and card creation.
+
+**Primary: LINE Messaging API**
+- Requires `LINE_CHANNEL_ACCESS_TOKEN` (bot channel token) and `LINE_DEFAULT_TARGET_ID` (LINE group or user ID)
+- Sends via `POST https://api.line.me/v2/bot/message/push`
+- If token is set but target ID is missing → `console.warn`, skip LINE
+
+**Fallback: Resend email**
+- Runs when LINE did not succeed (failed or not configured)
+- Requires `RESEND_API_KEY`, `RESEND_FROM_EMAIL` (must be a verified sender domain), and `NOTIFICATION_EMAIL`
+- Missing any of these → `console.warn`, skip email
+- Uses native `fetch` to `https://api.resend.com/emails`
+
+**Both missing:** `console.warn`, status written as `'skipped'` in DB. App does not crash.
+
+Always inserts a `notification_events` row first and updates it with final status (`sent`, `failed`, `skipped`). Never throws.
+
+### LINE Messaging API setup
+
+1. Create a LINE Official Account and enable the Messaging API channel in [LINE Developers Console](https://developers.line.biz/)
+2. Issue a long-lived channel access token
+3. Set `LINE_CHANNEL_ACCESS_TOKEN` env var
+4. Invite the bot to each internal group chat
+5. Implement a webhook endpoint to receive the `join` event and capture the `groupId`
+6. Store group IDs in the `line_groups.line_target_id` column (see `/admin/communications`)
+7. Set `LINE_DEFAULT_TARGET_ID` to the default group ID for system notifications
+
+The `line_groups` table holds per-group target IDs and auto-trigger configuration. The channel access token is global (env var), not per-group.
+
+**Note:** LINE Notify (notify-api.line.me) was shut down March 31, 2025. Do not use it.
+
+## Communications (manual sends from card detail)
+
+`src/app/api/communications/route.ts` handles manual LINE and email sends from `CommunicationPanel`.
+
+- LINE: uses `LINE_CHANNEL_ACCESS_TOKEN` + per-group `line_target_id` from DB (or `LINE_DEFAULT_TARGET_ID`)
+- Email: uses `RESEND_API_KEY` + `RESEND_FROM_EMAIL`; recipient is entered by the user
+- Email Summary: `POST /api/cards/[id]/send-summary` — fetches full card data, generates 24-hour signed attachment links, sends via Resend
+- All sends logged to `communication_events` table with sent/failed/skipped status
+- Missing config returns `status: 'skipped'` with clear error message — never fake success
 
 ## Delivery Methods
 
@@ -93,6 +126,19 @@ Cards support four delivery methods (`delivery_method` column, enum `delivery_me
 
 The card detail page uses `src/components/cards/LogisticsSection.tsx` (replaced the deleted `DriverSection.tsx`).
 
+## Attachments
+
+Files are uploaded to Supabase Storage bucket `delivery-attachments`. Path format: `{card_id}/{timestamp}-{sanitized_filename}`.
+
+- **Size limit:** 20 MB per file (enforced server-side and client-side)
+- **Allowed types:** JPEG, PNG, GIF, WebP, SVG, PDF, TXT, CSV, XLS, XLSX, DOC, DOCX
+- **Filenames:** sanitized server-side (non-alphanumeric chars replaced with `_`, max 200 chars)
+- **Access:** `GET /api/cards/[id]/attachments` returns 24-hour signed URLs in `signed_url` field
+- `AttachmentSection` uses `signed_url` for downloads; falls back to `file_url` if absent
+- **Orphan prevention:** DB record deleted first; storage removal is best-effort with error logging
+- **Card delete:** cleans up all attachment storage files before returning success
+- To fully privatize files: change the Supabase Storage bucket policy to private in the dashboard
+
 ## Database Tables
 
 | Table | Purpose |
@@ -101,7 +147,7 @@ The card detail page uses `src/components/cards/LogisticsSection.tsx` (replaced 
 | `drivers` | Driver roster (name, phone, vehicle, plate) |
 | `courier_companies` | Courier/post company roster |
 | `cargo_companies` | Air cargo company roster |
-| `line_groups` | LINE Notify groups with per-group tokens and auto-trigger config |
+| `line_groups` | LINE groups with `line_target_id` and auto-trigger config |
 | `delivery_cards` | Main delivery records with status, method, and logistics fields |
 | `delivery_customers` | Customers on each delivery (1:many per card) |
 | `customer_sale_orders` | SO numbers per customer |
@@ -115,22 +161,25 @@ The card detail page uses `src/components/cards/LogisticsSection.tsx` (replaced 
 
 ## Environment Variables
 
-| Variable | Purpose |
-|----------|---------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/public key (safe for client) |
-| `SUPABASE_SERVICE_ROLE_KEY` | Service role key — server-only, bypasses RLS |
-| `NEXT_PUBLIC_SITE_URL` | App base URL for OAuth redirect |
-| `LINE_NOTIFY_TOKEN` | LINE Notify token — system notifications primary channel (optional) |
-| `RESEND_API_KEY` | Resend email API key — system notification fallback (optional) |
-| `RESEND_FROM_EMAIL` | From address for system notification emails (optional) |
-| `NOTIFICATION_EMAIL` | Recipient address for system notification emails (optional) |
+| Variable | Purpose | Required |
+|----------|---------|---------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL | Yes |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/public key (safe for client) | Yes |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service role key — server-only, bypasses RLS | Yes |
+| `NEXT_PUBLIC_SITE_URL` | App base URL for OAuth redirect | Yes |
+| `LINE_CHANNEL_ACCESS_TOKEN` | LINE Messaging API channel access token | Optional |
+| `LINE_DEFAULT_TARGET_ID` | Default LINE group/user ID for system notifications | Optional |
+| `RESEND_API_KEY` | Resend email API key | Optional |
+| `RESEND_FROM_EMAIL` | Verified sender address for emails — **must be a domain verified in Resend** | Optional |
+| `NOTIFICATION_EMAIL` | Recipient for system notification emails | Optional |
 
 ## Supabase Storage
 
 Bucket name: `delivery-attachments`
-Upload path format: `{card_id}/{timestamp}-{filename}`
-The bucket should be public or use signed URLs.
+Upload path: `{card_id}/{timestamp}-{sanitized_filename}`
+Signed URL expiry: 24 hours (generated on read, not stored)
+
+To switch to private storage: change the bucket policy to private in the Supabase dashboard. The code already uses signed URLs for reads and stores only `storage_path` in `file_url`.
 
 ## Deployment
 
@@ -144,12 +193,15 @@ Add the Vercel URL to Supabase Authentication → URL Configuration.
 - `src/lib/supabase-server.ts` — server Supabase clients + `getSessionUser()` (server-only)
 - `src/lib/supabase-browser.ts` — browser Supabase client
 - `src/lib/activity.ts` — activity log helper
-- `src/lib/notifications.ts` — LINE Notify (primary) + Resend email (fallback) for system notifications
+- `src/lib/notifications.ts` — LINE Messaging API (primary) + Resend email (fallback) for system notifications
 - `src/lib/parse-body.ts` — safe JSON body parser; use instead of bare `req.json()`
 - `src/app/(protected)/board/BoardClient.tsx` — drag-and-drop Kanban
 - `src/app/(protected)/cards/[id]/CardDetailClient.tsx` — card detail page
 - `src/components/cards/LogisticsSection.tsx` — delivery method selector + per-method sub-form
-- `src/components/cards/CommunicationPanel.tsx` — manual LINE/email sends from card detail
-- `supabase/schema.sql` — full DB migration
-- `supabase/migration_logistics_v2.sql` — adds delivery method columns, courier/cargo/line_groups/communication_events tables
+- `src/components/cards/CommunicationPanel.tsx` — manual LINE/email sends + email summary from card detail
+- `src/components/cards/AttachmentSection.tsx` — file upload/view/delete with signed URLs
+- `src/app/api/cards/[id]/send-summary/route.ts` — email summary with 24-hour attachment links
+- `supabase/schema.sql` — full DB schema
+- `supabase/migration_logistics_v2.sql` — delivery method columns, courier/cargo/line_groups/communication_events tables
+- `supabase/migration_messaging_api_v3.sql` — renames line_groups.notify_token → line_target_id
 - `supabase/seed.sql` — first admin setup
