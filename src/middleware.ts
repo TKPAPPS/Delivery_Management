@@ -37,6 +37,12 @@ export async function middleware(req: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  // API routes must never be redirected — they handle auth themselves and
+  // return JSON. A redirect here would make fetch() follow it, get back HTML
+  // with status 200, and silently swallow the failure.
+  if (pathname.startsWith('/api/')) return res;
+
   if (!user) return NextResponse.redirect(new URL('/login', req.url));
 
   // Check active profile
@@ -50,7 +56,7 @@ export async function middleware(req: NextRequest) {
 
   // Admin route guard
   if (pathname.startsWith('/admin')) {
-    const logisticsAllowed = ['/admin/drivers', '/admin/customers', '/admin/settings'];
+    const logisticsAllowed = ['/admin/drivers', '/admin/customers', '/admin/settings', '/admin/courier-companies', '/admin/cargo-companies'];
     if (
       logisticsAllowed.some((p) => pathname.startsWith(p)) &&
       (profile.role === 'logistics' || profile.role === 'admin')
