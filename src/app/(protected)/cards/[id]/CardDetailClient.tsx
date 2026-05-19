@@ -14,6 +14,7 @@ import AttachmentSection from '@/components/cards/AttachmentSection';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useToastStore } from '@/store/toastStore';
 import { formatDate, statusColor, statusLabel } from '@/lib/utils';
+import DestinationInput from '@/components/ui/DestinationInput';
 import { ArrowLeft, AlertTriangle, Archive, Plus, Pencil, X, Check } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -140,15 +141,11 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
 
             {editing ? (
               <div className="space-y-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-500 mb-1">Destination</label>
-                  <input
-                    type="text"
-                    value={editFields.destination}
-                    onChange={(e) => setEditFields((f) => ({ ...f, destination: e.target.value }))}
-                    className="w-full text-lg font-bold text-slate-900 border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-crimson-500"
-                  />
-                </div>
+                <DestinationInput
+                  label="Destination"
+                  value={editFields.destination}
+                  onChange={(v) => setEditFields((f) => ({ ...f, destination: v }))}
+                />
                 <div className="flex gap-3">
                   <div className="flex-1">
                     <label className="block text-xs font-medium text-slate-500 mb-1">Planned Date</label>

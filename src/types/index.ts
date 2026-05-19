@@ -13,6 +13,14 @@ export interface Profile {
   updated_at: string;
 }
 
+export interface Destination {
+  id: string;
+  name: string;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface CustomerDirectory {
   id: string;
   name: string;

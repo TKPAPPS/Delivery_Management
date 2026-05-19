@@ -50,7 +50,7 @@ export async function middleware(req: NextRequest) {
 
   // Admin route guard
   if (pathname.startsWith('/admin')) {
-    const logisticsAllowed = ['/admin/drivers', '/admin/customers'];
+    const logisticsAllowed = ['/admin/drivers', '/admin/customers', '/admin/settings'];
     if (
       logisticsAllowed.some((p) => pathname.startsWith(p)) &&
       (profile.role === 'logistics' || profile.role === 'admin')

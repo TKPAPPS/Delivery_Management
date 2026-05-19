@@ -7,6 +7,7 @@ import Input from '@/components/ui/Input';
 import Textarea from '@/components/ui/Textarea';
 import Select from '@/components/ui/Select';
 import DatePicker from '@/components/ui/DatePicker';
+import DestinationInput from '@/components/ui/DestinationInput';
 import CustomerPicker from '@/components/cards/CustomerPicker';
 import { useToastStore } from '@/store/toastStore';
 import { Plus, Trash2 } from 'lucide-react';
@@ -109,11 +110,11 @@ export default function CreateCardModal({ open, onClose, onCreated }: CreateCard
   return (
     <Modal open={open} onClose={handleClose} title="New Delivery Card" size="lg">
       <form onSubmit={handleSubmit} className="space-y-4">
-        <Input
+        <DestinationInput
           label="Destination *"
           value={form.destination}
-          onChange={(e) => setForm((f) => ({ ...f, destination: e.target.value }))}
-          placeholder="e.g. Bangkok Warehouse A"
+          onChange={(v) => setForm((f) => ({ ...f, destination: v }))}
+          required
         />
         <div className="grid grid-cols-2 gap-4">
           <Select

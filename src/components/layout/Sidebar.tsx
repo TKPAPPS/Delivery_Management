@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Columns, Archive, Users, Truck, ClipboardList, BookUser, X } from 'lucide-react';
+import { LayoutDashboard, Columns, Archive, Users, Truck, ClipboardList, BookUser, Settings, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SidebarProps {
@@ -20,6 +20,7 @@ const adminNav = [
   { href: '/admin/users', label: 'Users', icon: Users },
   { href: '/admin/customers', label: 'Customers', icon: BookUser },
   { href: '/admin/drivers', label: 'Drivers', icon: Truck },
+  { href: '/admin/settings', label: 'Settings', icon: Settings },
 ];
 
 export default function Sidebar({ role, onNavClick }: SidebarProps) {
