@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import type { PlanningQueueItem, DeliveryStatus } from '@/types';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
-import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
+import DestinationInput from '@/components/ui/DestinationInput';
 import { useToastStore } from '@/store/toastStore';
 import { ClipboardList, RefreshCw, Trash2, Plus, ArrowRight } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
@@ -46,7 +46,8 @@ export default function PlanningQueuePage() {
   const handleRemove = async (id: string) => {
     setRemoving(id);
     try {
-      await fetch(`/api/planning-queue/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/planning-queue/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to remove item');
       setItems((prev) => prev.filter((i) => i.id !== id));
       addToast('Removed from queue', 'success');
     } catch {
@@ -208,12 +209,11 @@ export default function PlanningQueuePage() {
               Creating a new card for <span className="font-semibold">{selectedItem.customer_name}</span>.
             </p>
             <div className="space-y-3">
-              <Input
-                label="Destination"
-                placeholder="e.g. Phuket"
+              <DestinationInput
+                label="Destination *"
                 value={newDestination}
-                onChange={(e) => setNewDestination(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleCreateCard()}
+                onChange={(v) => setNewDestination(v)}
+                required
               />
               <Select
                 label="Initial Status"

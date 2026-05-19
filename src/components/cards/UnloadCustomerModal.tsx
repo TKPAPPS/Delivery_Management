@@ -3,10 +3,11 @@
 import { useState } from 'react';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
-import Input from '@/components/ui/Input';
+import DestinationInput from '@/components/ui/DestinationInput';
 import Select from '@/components/ui/Select';
 import Textarea from '@/components/ui/Textarea';
 import { useToastStore } from '@/store/toastStore';
+import { useRouter } from 'next/navigation';
 import type { DeliveryCard } from '@/types';
 
 type UnloadAction = 'planning_queue' | 'move_to_card' | 'create_card' | 'delayed';
@@ -29,6 +30,7 @@ export default function UnloadCustomerModal({
   onDone,
 }: UnloadCustomerModalProps) {
   const addToast = useToastStore((s) => s.addToast);
+  const router = useRouter();
   const [action, setAction] = useState<UnloadAction>('planning_queue');
   const [loading, setLoading] = useState(false);
   const [targetCardId, setTargetCardId] = useState('');
@@ -66,9 +68,13 @@ export default function UnloadCustomerModal({
         body: JSON.stringify({ unload: true, ...body }),
       });
       if (!res.ok) throw new Error('Failed to unload customer');
+      const resData = await res.json();
       addToast('Customer unloaded', 'success');
       onDone();
       onClose();
+      if (resData.newCardId) {
+        router.push(`/cards/${resData.newCardId}`);
+      }
     } catch {
       addToast('Failed to unload customer', 'error');
     } finally {
@@ -128,11 +134,11 @@ export default function UnloadCustomerModal({
 
       {action === 'create_card' && (
         <div className="mb-4">
-          <Input
-            label="New card destination"
+          <DestinationInput
+            label="New card destination *"
             value={newCardDest}
-            onChange={(e) => setNewCardDest(e.target.value)}
-            placeholder="Destination for new card"
+            onChange={(v) => setNewCardDest(v)}
+            required
           />
         </div>
       )}

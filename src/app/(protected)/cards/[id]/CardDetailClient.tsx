@@ -32,6 +32,7 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
   const [showAddCustomer, setShowAddCustomer] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [archiving, setArchiving] = useState(false);
+  const [unarchiving, setUnarchiving] = useState(false);
 
   // Edit mode state
   const [editing, setEditing] = useState(false);
@@ -77,6 +78,24 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
     } finally {
       setArchiving(false);
       setArchiveOpen(false);
+    }
+  };
+
+  const handleUnarchive = async () => {
+    setUnarchiving(true);
+    try {
+      const res = await fetch(`/api/cards/${card.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_archived: false, archived_at: null }),
+      });
+      if (!res.ok) throw new Error('Failed to unarchive card');
+      addToast('Card restored to board', 'success');
+      router.push('/board');
+    } catch {
+      addToast('Failed to unarchive card', 'error');
+    } finally {
+      setUnarchiving(false);
     }
   };
 
@@ -130,8 +149,11 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
       <div className="bg-white border border-slate-200 rounded-xl p-6 mb-6">
         <div className="flex items-start justify-between gap-4 mb-4">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
               <span className="font-mono text-xs text-crimson-700">{card.delivery_ref}</span>
+              {card.is_archived && (
+                <Badge variant="default">Archived</Badge>
+              )}
               {!editing && card.priority === 'urgent' && (
                 <Badge variant="danger">
                   <AlertTriangle className="w-3 h-3 mr-1" /> Urgent
@@ -215,27 +237,43 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
               </>
             ) : (
               <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setEditing(true)}
-                  className="text-slate-500"
-                >
-                  <Pencil className="w-4 h-4" />
-                </Button>
-                <StatusDropdown
-                  cardId={card.id}
-                  currentStatus={card.status}
-                  onStatusChange={handleStatusChange}
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setArchiveOpen(true)}
-                  className="text-slate-500"
-                >
-                  <Archive className="w-4 h-4" />
-                </Button>
+                {!card.is_archived && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setEditing(true)}
+                    className="text-slate-500"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                )}
+                {!card.is_archived && (
+                  <StatusDropdown
+                    cardId={card.id}
+                    currentStatus={card.status}
+                    onStatusChange={handleStatusChange}
+                  />
+                )}
+                {card.is_archived ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleUnarchive}
+                    loading={unarchiving}
+                    className="text-emerald-600 border-emerald-300 hover:bg-emerald-50"
+                  >
+                    <Archive className="w-4 h-4" /> Restore
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setArchiveOpen(true)}
+                    className="text-slate-500"
+                  >
+                    <Archive className="w-4 h-4" />
+                  </Button>
+                )}
               </>
             )}
           </div>

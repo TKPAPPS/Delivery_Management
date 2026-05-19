@@ -76,7 +76,16 @@ export default function DriverSection({ card, drivers, onUpdated }: DriverSectio
           </Button>
         ) : (
           <div className="flex gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setEditing(false)} disabled={loading}>
+            <Button variant="ghost" size="sm" onClick={() => {
+              setForm({
+                driver_id: card.driver_id ?? '',
+                driver_name_manual: card.driver_name_manual ?? '',
+                driver_phone_manual: card.driver_phone_manual ?? '',
+                vehicle_type_manual: card.vehicle_type_manual ?? '',
+                license_plate_manual: card.license_plate_manual ?? '',
+              });
+              setEditing(false);
+            }} disabled={loading}>
               <X className="w-3.5 h-3.5" />
             </Button>
             <Button size="sm" onClick={save} loading={loading}>

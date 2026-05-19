@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser, createSupabaseAdminClient } from '@/lib/supabase-server';
 import { logActivity, ACTIONS } from '@/lib/activity';
 import { sendNotification } from '@/lib/notifications';
+import type { DeliveryCardWithCustomers } from '@/types';
 
 export async function GET(req: NextRequest) {
   const ctx = await getSessionUser();
@@ -11,12 +12,23 @@ export async function GET(req: NextRequest) {
   const includeCustomers = searchParams.get('include_customers') === 'true';
   const isArchived = searchParams.get('archived') === 'true';
 
-  // Use admin client — auth is already verified above, bypasses RLS to ensure all cards are visible
+  // Use admin client — auth already verified above, bypasses RLS to ensure all cards are visible
   const admin = createSupabaseAdminClient();
 
-  const query = admin
+  if (!includeCustomers) {
+    const { data: cards, error } = await admin
+      .from('delivery_cards')
+      .select('*')
+      .eq('is_archived', isArchived)
+      .order('created_at', { ascending: false });
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ cards: cards ?? [] });
+  }
+
+  // Full query with relations
+  const { data: rawCards, error } = await admin
     .from('delivery_cards')
-    .select(includeCustomers ? `
+    .select(`
       *,
       driver:drivers(*),
       creator:profiles!delivery_cards_created_by_fkey(id, name, email),
@@ -25,18 +37,17 @@ export async function GET(req: NextRequest) {
         sale_orders:customer_sale_orders(*),
         extra_items:extra_delivery_items(*)
       )
-    ` : '*')
+    `)
     .eq('is_archived', isArchived)
     .order('created_at', { ascending: false });
 
-  const { data: cards, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  if (!includeCustomers || !cards?.length) {
-    return NextResponse.json({ cards: cards ?? [] });
-  }
+  const cards = (rawCards ?? []) as unknown as DeliveryCardWithCustomers[];
 
-  // Enrich with comment + attachment counts (same as SSR board page)
+  if (!cards.length) return NextResponse.json({ cards: [] });
+
+  // Enrich with comment + attachment counts (mirrors the SSR board page)
   const cardIds = cards.map((c) => c.id);
   const [{ data: commentRows }, { data: attachmentRows }] = await Promise.all([
     admin.from('comments').select('delivery_card_id').in('delivery_card_id', cardIds),
