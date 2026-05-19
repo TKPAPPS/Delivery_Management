@@ -11,7 +11,7 @@ interface StatusDropdownProps {
   onStatusChange: (status: DeliveryStatus) => void;
 }
 
-const STATUSES: DeliveryStatus[] = ['draft', 'driver_needed', 'driver_booked', 'loaded', 'delivered'];
+const STATUSES: DeliveryStatus[] = ['draft', 'pending_booking', 'booked', 'in_transit', 'delivered'];
 
 export default function StatusDropdown({ cardId, currentStatus, onStatusChange }: StatusDropdownProps) {
   const addToast = useToastStore((s) => s.addToast);

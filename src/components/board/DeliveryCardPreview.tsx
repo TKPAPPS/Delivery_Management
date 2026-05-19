@@ -15,7 +15,7 @@ export default function DeliveryCardPreview({ card, dragging }: DeliveryCardPrev
   const customerNames = card.customers.map((c) => c.customer_name);
 
   const daysWaiting =
-    card.status === 'driver_needed' && card.status_changed_at
+    card.status === 'pending_booking' && card.status_changed_at
       ? Math.floor((Date.now() - new Date(card.status_changed_at).getTime()) / 86_400_000)
       : 0;
   const isStuck = daysWaiting >= 2;

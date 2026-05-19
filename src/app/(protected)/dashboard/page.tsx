@@ -22,9 +22,9 @@ export default async function DashboardPage() {
 
   const counts = {
     draft: allCards.filter((c) => c.status === 'draft').length,
-    driver_needed: allCards.filter((c) => c.status === 'driver_needed').length,
-    driver_booked: allCards.filter((c) => c.status === 'driver_booked').length,
-    loaded: allCards.filter((c) => c.status === 'loaded').length,
+    pending_booking: allCards.filter((c) => c.status === 'pending_booking').length,
+    booked: allCards.filter((c) => c.status === 'booked').length,
+    in_transit: allCards.filter((c) => c.status === 'in_transit').length,
     urgent: allCards.filter((c) => c.priority === 'urgent' && c.status !== 'delivered').length,
   };
 
@@ -48,7 +48,7 @@ export default async function DashboardPage() {
   const recent = allCards.slice(0, 5);
 
   const stuckDriverNeeded = allCards
-    .filter((c) => c.status === 'driver_needed')
+    .filter((c) => c.status === 'pending_booking')
     .sort((a, b) => a.status_changed_at.localeCompare(b.status_changed_at))
     .slice(0, 5);
 
@@ -65,9 +65,9 @@ export default async function DashboardPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
         <StatCard title="Draft" value={counts.draft} icon={LayoutDashboard} color="gray" href="/board" />
-        <StatCard title="Driver Needed" value={counts.driver_needed} icon={AlertTriangle} color="amber" href="/board" />
-        <StatCard title="Driver Booked" value={counts.driver_booked} icon={Truck} color="blue" href="/board" />
-        <StatCard title="Loaded" value={counts.loaded} icon={CheckSquare} color="green" href="/board" />
+        <StatCard title="Pending Booking" value={counts.pending_booking} icon={AlertTriangle} color="amber" href="/board" />
+        <StatCard title="Booked" value={counts.booked} icon={Truck} color="blue" href="/board" />
+        <StatCard title="In Transit" value={counts.in_transit} icon={CheckSquare} color="green" href="/board" />
         <StatCard title="Urgent" value={counts.urgent} icon={AlertTriangle} color="red" href="/board" />
         <StatCard title="Delivered This Month" value={deliveredThisMonth} icon={CheckCircle2} color="green" href="/archive" subtitle="completed" />
       </div>

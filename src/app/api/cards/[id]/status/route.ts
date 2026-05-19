@@ -10,7 +10,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const { user } = ctx;
 
   const { status, delivery_notes } = await req.json();
-  const validStatuses: DeliveryStatus[] = ['draft', 'driver_needed', 'driver_booked', 'loaded', 'delivered'];
+  const validStatuses: DeliveryStatus[] = ['draft', 'pending_booking', 'booked', 'in_transit', 'delivered'];
   if (!validStatuses.includes(status)) {
     return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
   }
@@ -45,9 +45,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   await logActivity(params.id, user.id, ACTIONS.STATUS_CHANGED, { from: existing.status, to: status });
 
   const notifMap: Partial<Record<DeliveryStatus, NotificationType>> = {
-    driver_needed: 'status_driver_needed',
-    driver_booked: 'status_driver_booked',
-    loaded: 'status_loaded',
+    pending_booking: 'status_pending_booking',
+    booked: 'status_booked',
+    in_transit: 'status_in_transit',
     delivered: 'status_delivered',
   };
   const notifType = notifMap[status as DeliveryStatus];

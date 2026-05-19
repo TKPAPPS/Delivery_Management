@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
       .select('*')
       .eq('is_archived', isArchived)
       .order('created_at', { ascending: false });
-    if (!isArchived) q = q.in('status', ['draft', 'driver_needed', 'driver_booked', 'loaded']);
+    if (!isArchived) q = q.in('status', ['draft', 'pending_booking', 'booked', 'in_transit']);
     const { data: cards, error } = await q;
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ cards: cards ?? [] });
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
 
   // Board view: only show active statuses (delivered cards belong in History)
   if (!isArchived) {
-    fullQuery = fullQuery.in('status', ['draft', 'driver_needed', 'driver_booked', 'loaded']);
+    fullQuery = fullQuery.in('status', ['draft', 'pending_booking', 'booked', 'in_transit']);
   }
 
   const { data: rawCards, error } = await fullQuery;

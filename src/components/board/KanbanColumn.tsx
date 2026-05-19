@@ -16,15 +16,15 @@ export default function KanbanColumn({ status, cards }: KanbanColumnProps) {
       container: 'bg-slate-50/50 border-slate-200',
       badge: 'bg-slate-100 text-slate-600',
     },
-    driver_needed: {
+    pending_booking: {
       container: 'bg-gold-50/50 border-gold-200',
       badge: 'bg-gold-100 text-gold-700',
     },
-    driver_booked: {
+    booked: {
       container: 'bg-crimson-50/50 border-crimson-200',
       badge: 'bg-crimson-100 text-crimson-700',
     },
-    loaded: {
+    in_transit: {
       container: 'bg-emerald-50/50 border-emerald-200',
       badge: 'bg-emerald-100 text-emerald-700',
     },
@@ -36,9 +36,9 @@ export default function KanbanColumn({ status, cards }: KanbanColumnProps) {
 
   const headerTextColors: Record<DeliveryStatus, string> = {
     draft: 'text-slate-600',
-    driver_needed: 'text-gold-700',
-    driver_booked: 'text-crimson-700',
-    loaded: 'text-emerald-700',
+    pending_booking: 'text-gold-700',
+    booked: 'text-crimson-700',
+    in_transit: 'text-emerald-700',
     delivered: 'text-teal-700',
   };
 

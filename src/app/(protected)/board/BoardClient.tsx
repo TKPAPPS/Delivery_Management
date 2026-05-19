@@ -11,7 +11,7 @@ import { useToastStore } from '@/store/toastStore';
 import { statusLabel, statusColor, formatDate } from '@/lib/utils';
 import Link from 'next/link';
 
-const STATUSES: DeliveryStatus[] = ['draft', 'driver_needed', 'driver_booked', 'loaded'];
+const STATUSES: DeliveryStatus[] = ['draft', 'pending_booking', 'booked', 'in_transit'];
 
 interface BoardClientProps {
   initialCards: DeliveryCardWithCustomers[];
@@ -44,7 +44,7 @@ export default function BoardClient({ initialCards }: BoardClientProps) {
       acc[status] = visibleCards.filter((c) => c.status === status);
       return acc;
     },
-    { draft: [], driver_needed: [], driver_booked: [], loaded: [], delivered: [] }
+    { draft: [], pending_booking: [], booked: [], in_transit: [], delivered: [] }
   );
 
   const onDragEnd = useCallback(
@@ -67,8 +67,8 @@ export default function BoardClient({ initialCards }: BoardClientProps) {
           body: JSON.stringify({ status: newStatus }),
         });
         if (!res.ok) throw new Error('Failed to update status');
-        if (newStatus === 'loaded') {
-          addToast('Card loaded — open it to archive when delivery is complete', 'success');
+        if (newStatus === 'in_transit') {
+          addToast('Card in transit — open it to mark as delivered when done', 'success');
         } else {
           addToast(`Card moved to ${statusLabel(newStatus)}`, 'success');
         }
@@ -91,8 +91,8 @@ export default function BoardClient({ initialCards }: BoardClientProps) {
         body: JSON.stringify({ status: newStatus }),
       });
       if (!res.ok) throw new Error();
-      if (newStatus === 'loaded') {
-        addToast('Card loaded — open it to archive when delivery is complete', 'success');
+      if (newStatus === 'in_transit') {
+        addToast('Card in transit — open it to mark as delivered when done', 'success');
       } else {
         addToast('Status updated', 'success');
       }

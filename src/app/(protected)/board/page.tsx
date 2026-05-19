@@ -22,7 +22,7 @@ export default async function BoardPage() {
         )
       `)
       .eq('is_archived', false)
-      .in('status', ['draft', 'driver_needed', 'driver_booked', 'loaded'])
+      .in('status', ['draft', 'pending_booking', 'booked', 'in_transit'])
       .order('created_at', { ascending: false }),
     supabase.from('comments').select('delivery_card_id'),
     supabase.from('attachments').select('delivery_card_id'),

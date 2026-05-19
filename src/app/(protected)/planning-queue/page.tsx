@@ -13,7 +13,7 @@ import { formatDate } from '@/lib/utils';
 
 const STATUS_OPTIONS = [
   { value: 'draft', label: 'Draft' },
-  { value: 'driver_needed', label: 'Driver Needed' },
+  { value: 'pending_booking', label: 'Pending Booking' },
 ];
 
 export default function PlanningQueuePage() {

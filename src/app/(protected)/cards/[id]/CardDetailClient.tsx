@@ -314,7 +314,7 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
 
         {/* Status timeline */}
         <div className="flex items-center gap-2 flex-wrap">
-          {(['draft', 'driver_needed', 'driver_booked', 'loaded', 'delivered'] as DeliveryStatus[]).map((s, i) => (
+          {(['draft', 'pending_booking', 'booked', 'in_transit', 'delivered'] as DeliveryStatus[]).map((s, i) => (
             <div key={s} className="flex items-center gap-2">
               {i > 0 && <span className="text-slate-300">→</span>}
               <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -328,12 +328,12 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
       </div>
 
       {/* Loaded — mark as delivered CTA */}
-      {card.status === 'loaded' && !card.is_archived && (
+      {card.status === 'in_transit' && !card.is_archived && (
         <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 mb-6">
           {!showDeliveredForm ? (
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="font-semibold text-teal-800 text-sm">Delivery is loaded — ready to go</p>
+                <p className="font-semibold text-teal-800 text-sm">Delivery is in transit</p>
                 <p className="text-xs text-teal-600 mt-0.5">Once delivered, mark it as completed to move it to History.</p>
               </div>
               <Button

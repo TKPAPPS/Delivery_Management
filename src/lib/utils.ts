@@ -35,9 +35,9 @@ export function formatRef(ref: string): string {
 export function statusLabel(status: DeliveryStatus): string {
   const labels: Record<DeliveryStatus, string> = {
     draft: 'Draft',
-    driver_needed: 'Driver Needed',
-    driver_booked: 'Driver Booked',
-    loaded: 'Loaded',
+    pending_booking: 'Pending Booking',
+    booked: 'Booked',
+    in_transit: 'In Transit',
     delivered: 'Delivered',
   };
   return labels[status];
@@ -46,9 +46,9 @@ export function statusLabel(status: DeliveryStatus): string {
 export function statusColor(status: DeliveryStatus): string {
   const colors: Record<DeliveryStatus, string> = {
     draft: 'bg-gray-100 text-gray-700',
-    driver_needed: 'bg-amber-100 text-amber-800',
-    driver_booked: 'bg-blue-100 text-blue-800',
-    loaded: 'bg-green-100 text-green-800',
+    pending_booking: 'bg-amber-100 text-amber-800',
+    booked: 'bg-blue-100 text-blue-800',
+    in_transit: 'bg-green-100 text-green-800',
     delivered: 'bg-teal-100 text-teal-800',
   };
   return colors[status];

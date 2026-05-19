@@ -2,9 +2,9 @@ import { createSupabaseAdminClient } from './supabase-server';
 
 export type NotificationType =
   | 'card_created'
-  | 'status_driver_needed'
-  | 'status_driver_booked'
-  | 'status_loaded'
+  | 'status_pending_booking'
+  | 'status_booked'
+  | 'status_in_transit'
   | 'status_delivered'
   | 'driver_assigned'
   | 'urgent_card_created';
@@ -93,12 +93,12 @@ function buildMessage(type: NotificationType, payload: NotificationPayload): str
       return `\nNew delivery card created\n${ref} - ${dest}${date}`;
     case 'urgent_card_created':
       return `\n[URGENT] New urgent delivery card\n${ref} - ${dest}${date}`;
-    case 'status_driver_needed':
-      return `\nDriver needed\n${ref} - ${dest}${date}`;
-    case 'status_driver_booked':
-      return `\nDriver booked\n${ref} - ${dest}${date}`;
-    case 'status_loaded':
-      return `\nLoaded and ready\n${ref} - ${dest}${date}`;
+    case 'status_pending_booking':
+      return `\nPending booking\n${ref} - ${dest}${date}`;
+    case 'status_booked':
+      return `\nBooked and confirmed\n${ref} - ${dest}${date}`;
+    case 'status_in_transit':
+      return `\nIn transit\n${ref} - ${dest}${date}`;
     case 'status_delivered':
       return `\nDelivery completed\n${ref} - ${dest}${date}`;
     case 'driver_assigned':
