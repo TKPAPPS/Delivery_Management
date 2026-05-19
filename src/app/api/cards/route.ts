@@ -11,7 +11,10 @@ export async function GET(req: NextRequest) {
   const includeCustomers = searchParams.get('include_customers') === 'true';
   const isArchived = searchParams.get('archived') === 'true';
 
-  const query = ctx.supabase
+  // Use admin client — auth is already verified above, bypasses RLS to ensure all cards are visible
+  const admin = createSupabaseAdminClient();
+
+  const query = admin
     .from('delivery_cards')
     .select(includeCustomers ? `
       *,
@@ -29,7 +32,35 @@ export async function GET(req: NextRequest) {
   const { data: cards, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ cards });
+  if (!includeCustomers || !cards?.length) {
+    return NextResponse.json({ cards: cards ?? [] });
+  }
+
+  // Enrich with comment + attachment counts (same as SSR board page)
+  const cardIds = cards.map((c) => c.id);
+  const [{ data: commentRows }, { data: attachmentRows }] = await Promise.all([
+    admin.from('comments').select('delivery_card_id').in('delivery_card_id', cardIds),
+    admin.from('attachments').select('delivery_card_id').in('delivery_card_id', cardIds),
+  ]);
+
+  const commentMap = (commentRows ?? []).reduce<Record<string, number>>((acc, c) => {
+    acc[c.delivery_card_id] = (acc[c.delivery_card_id] ?? 0) + 1;
+    return acc;
+  }, {});
+  const attachmentMap = (attachmentRows ?? []).reduce<Record<string, number>>((acc, a) => {
+    acc[a.delivery_card_id] = (acc[a.delivery_card_id] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  const enrichedCards = cards.map((card) => ({
+    ...card,
+    _count: {
+      comments: commentMap[card.id] ?? 0,
+      attachments: attachmentMap[card.id] ?? 0,
+    },
+  }));
+
+  return NextResponse.json({ cards: enrichedCards });
 }
 
 export async function POST(req: NextRequest) {

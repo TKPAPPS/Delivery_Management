@@ -70,7 +70,7 @@ export default function DriverSection({ card, drivers, onUpdated }: DriverSectio
           <Truck className="w-4 h-4 text-slate-500" />
           <h3 className="font-semibold text-slate-900 text-sm">Driver Details</h3>
         </div>
-        {!editing ? (
+        {!editing && driverName ? (
           <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
             <Edit className="w-3.5 h-3.5" /> Edit
           </Button>
@@ -114,7 +114,13 @@ export default function DriverSection({ card, drivers, onUpdated }: DriverSectio
               )}
             </>
           ) : (
-            <p className="text-sm text-slate-400 italic">No driver assigned yet</p>
+            <button
+              onClick={() => setEditing(true)}
+              className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-slate-300 rounded-lg py-3 text-sm text-slate-500 hover:border-crimson-400 hover:text-crimson-600 transition-colors"
+            >
+              <Truck className="w-4 h-4" />
+              Assign Driver
+            </button>
           )}
         </div>
       ) : (

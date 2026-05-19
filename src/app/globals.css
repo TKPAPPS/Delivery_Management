@@ -7,6 +7,10 @@
   --brand-gold: #c4963a;
 }
 
+html {
+  font-size: 17px;
+}
+
 body {
   background-color: #ffffff;
   color: #111111;

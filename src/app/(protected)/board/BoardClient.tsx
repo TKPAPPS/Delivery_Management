@@ -52,7 +52,11 @@ export default function BoardClient({ initialCards }: BoardClientProps) {
           body: JSON.stringify({ status: newStatus }),
         });
         if (!res.ok) throw new Error('Failed to update status');
-        addToast(`Card moved to ${newStatus.replace(/_/g, ' ')}`, 'success');
+        if (newStatus === 'loaded') {
+          addToast('Card loaded — open it to archive when delivery is complete', 'success');
+        } else {
+          addToast(`Card moved to ${statusLabel(newStatus)}`, 'success');
+        }
       } catch {
         setCards((prev) =>
           prev.map((c) => (c.id === draggableId ? { ...c, status: oldStatus } : c))
@@ -72,7 +76,11 @@ export default function BoardClient({ initialCards }: BoardClientProps) {
         body: JSON.stringify({ status: newStatus }),
       });
       if (!res.ok) throw new Error();
-      addToast('Status updated', 'success');
+      if (newStatus === 'loaded') {
+        addToast('Card loaded — open it to archive when delivery is complete', 'success');
+      } else {
+        addToast('Status updated', 'success');
+      }
     } catch {
       setCards((prev) => prev.map((c) => (c.id === cardId ? { ...c, status: oldStatus } : c)));
       addToast('Failed to update status', 'error');

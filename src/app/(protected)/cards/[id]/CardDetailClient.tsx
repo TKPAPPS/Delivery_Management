@@ -256,6 +256,24 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
         </div>
       </div>
 
+      {/* Loaded — archive CTA */}
+      {card.status === 'loaded' && !card.is_archived && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-6 flex items-center justify-between gap-4">
+          <div>
+            <p className="font-semibold text-emerald-800 text-sm">Delivery loaded and ready</p>
+            <p className="text-xs text-emerald-600 mt-0.5">Once the delivery is complete, archive this card to keep the board clean.</p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setArchiveOpen(true)}
+            className="flex-shrink-0 border-emerald-300 text-emerald-700 hover:bg-emerald-100"
+          >
+            <Archive className="w-4 h-4" /> Archive
+          </Button>
+        </div>
+      )}
+
       {/* Driver Section */}
       <div className="mb-6">
         <DriverSection card={card} drivers={drivers} onUpdated={handleCardUpdated} />
