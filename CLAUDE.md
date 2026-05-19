@@ -203,5 +203,5 @@ Add the Vercel URL to Supabase Authentication → URL Configuration.
 - `src/app/api/cards/[id]/send-summary/route.ts` — email summary with 24-hour attachment links
 - `supabase/schema.sql` — full DB schema
 - `supabase/migration_logistics_v2.sql` — delivery method columns, courier/cargo/line_groups/communication_events tables
-- `supabase/migration_messaging_api_v3.sql` — renames line_groups.notify_token → line_target_id
+- `supabase/migration_messaging_api_v3.sql` — idempotent; renames line_groups.notify_token → line_target_id (no-op if already renamed)
 - `supabase/seed.sql` — first admin setup

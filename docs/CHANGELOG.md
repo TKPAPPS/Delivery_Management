@@ -63,7 +63,7 @@
 
 ### Infrastructure
 
-- New migration: `supabase/migration_messaging_api_v3.sql` — `ALTER TABLE line_groups RENAME COLUMN notify_token TO line_target_id`
+- New migration: `supabase/migration_messaging_api_v3.sql` — idempotent DO block; renames `notify_token → line_target_id` if needed, no-ops if already renamed, adds column if neither exists
 - `CLAUDE.md` updated: LINE Messaging API setup, env vars table, attachment limits, signed URL behavior, email summary route, known manual setup steps
 
 ### Known limitations / manual setup required
