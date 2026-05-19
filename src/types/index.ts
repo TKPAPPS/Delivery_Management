@@ -1,5 +1,5 @@
 export type UserRole = 'admin' | 'sales' | 'stock_manager' | 'logistics';
-export type DeliveryStatus = 'draft' | 'driver_needed' | 'driver_booked' | 'loaded';
+export type DeliveryStatus = 'draft' | 'driver_needed' | 'driver_booked' | 'loaded' | 'delivered';
 export type DeliveryPriority = 'normal' | 'urgent';
 export type NotificationStatus = 'pending' | 'sent' | 'failed' | 'skipped';
 
@@ -246,7 +246,7 @@ export type Database = {
     Functions: Record<string, never>;
     Enums: {
       user_role: UserRole;
-      delivery_status: DeliveryStatus;
+      delivery_status: 'draft' | 'driver_needed' | 'driver_booked' | 'loaded' | 'delivered';
       delivery_priority: DeliveryPriority;
       notification_status: NotificationStatus;
     };

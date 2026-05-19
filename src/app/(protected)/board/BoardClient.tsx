@@ -29,7 +29,7 @@ export default function BoardClient({ initialCards }: BoardClientProps) {
       acc[status] = cards.filter((c) => c.status === status);
       return acc;
     },
-    { draft: [], driver_needed: [], driver_booked: [], loaded: [] }
+    { draft: [], driver_needed: [], driver_booked: [], loaded: [], delivered: [] }
   );
 
   const onDragEnd = useCallback(

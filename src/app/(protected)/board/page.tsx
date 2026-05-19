@@ -22,6 +22,7 @@ export default async function BoardPage() {
         )
       `)
       .eq('is_archived', false)
+      .neq('status', 'delivered')
       .order('created_at', { ascending: false }),
     supabase.from('comments').select('delivery_card_id'),
     supabase.from('attachments').select('delivery_card_id'),

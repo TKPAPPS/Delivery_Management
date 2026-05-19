@@ -33,6 +33,7 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [unarchiving, setUnarchiving] = useState(false);
+  const [markingDelivered, setMarkingDelivered] = useState(false);
 
   // Edit mode state
   const [editing, setEditing] = useState(false);
@@ -78,6 +79,24 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
     } finally {
       setArchiving(false);
       setArchiveOpen(false);
+    }
+  };
+
+  const handleMarkDelivered = async () => {
+    setMarkingDelivered(true);
+    try {
+      const res = await fetch(`/api/cards/${card.id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'delivered' }),
+      });
+      if (!res.ok) throw new Error('Failed to mark as delivered');
+      addToast('Delivery completed — card moved to History', 'success');
+      router.push('/archive');
+    } catch {
+      addToast('Failed to mark as delivered', 'error');
+    } finally {
+      setMarkingDelivered(false);
     }
   };
 
@@ -281,7 +300,7 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
 
         {/* Status timeline */}
         <div className="flex items-center gap-2 flex-wrap">
-          {(['draft', 'driver_needed', 'driver_booked', 'loaded'] as DeliveryStatus[]).map((s, i) => (
+          {(['draft', 'driver_needed', 'driver_booked', 'loaded', 'delivered'] as DeliveryStatus[]).map((s, i) => (
             <div key={s} className="flex items-center gap-2">
               {i > 0 && <span className="text-slate-300">→</span>}
               <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -294,20 +313,21 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
         </div>
       </div>
 
-      {/* Loaded — archive CTA */}
+      {/* Loaded — mark as delivered CTA */}
       {card.status === 'loaded' && !card.is_archived && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-6 flex items-center justify-between gap-4">
+        <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 mb-6 flex items-center justify-between gap-4">
           <div>
-            <p className="font-semibold text-emerald-800 text-sm">Delivery loaded and ready</p>
-            <p className="text-xs text-emerald-600 mt-0.5">Once the delivery is complete, archive this card to keep the board clean.</p>
+            <p className="font-semibold text-teal-800 text-sm">Delivery is loaded — ready to go</p>
+            <p className="text-xs text-teal-600 mt-0.5">Once the delivery has been completed, mark it as delivered.</p>
           </div>
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setArchiveOpen(true)}
-            className="flex-shrink-0 border-emerald-300 text-emerald-700 hover:bg-emerald-100"
+            onClick={handleMarkDelivered}
+            loading={markingDelivered}
+            className="flex-shrink-0 border-teal-400 text-teal-700 hover:bg-teal-100 font-semibold"
           >
-            <Archive className="w-4 h-4" /> Archive
+            ✓ Mark as Delivered
           </Button>
         </div>
       )}

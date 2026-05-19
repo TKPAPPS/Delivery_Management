@@ -38,6 +38,7 @@ export function statusLabel(status: DeliveryStatus): string {
     driver_needed: 'Driver Needed',
     driver_booked: 'Driver Booked',
     loaded: 'Loaded',
+    delivered: 'Delivered',
   };
   return labels[status];
 }
@@ -48,6 +49,7 @@ export function statusColor(status: DeliveryStatus): string {
     driver_needed: 'bg-amber-100 text-amber-800',
     driver_booked: 'bg-blue-100 text-blue-800',
     loaded: 'bg-green-100 text-green-800',
+    delivered: 'bg-teal-100 text-teal-800',
   };
   return colors[status];
 }

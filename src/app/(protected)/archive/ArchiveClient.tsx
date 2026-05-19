@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { formatDate, statusColor, statusLabel } from '@/lib/utils';
 import Link from 'next/link';
-import { Archive, Search } from 'lucide-react';
+import { History, Search } from 'lucide-react';
 
 interface ArchiveCard {
   id: string;
@@ -12,6 +12,7 @@ interface ArchiveCard {
   status: string;
   planned_date: string | null;
   archived_at: string | null;
+  created_at: string;
   customers: Array<{ customer_name: string; sale_orders: Array<{ sale_order_number: string }> }>;
 }
 
@@ -25,26 +26,29 @@ export default function ArchiveClient({ cards }: ArchiveClientProps) {
   const filtered = q.trim()
     ? cards.filter((card) => {
         const qLower = q.toLowerCase();
-        const matchCard =
+        return (
           card.destination?.toLowerCase().includes(qLower) ||
-          card.delivery_ref?.toLowerCase().includes(qLower);
-        const matchCustomer = card.customers.some((c) =>
-          c.customer_name?.toLowerCase().includes(qLower)
+          card.delivery_ref?.toLowerCase().includes(qLower) ||
+          card.customers.some((c) => c.customer_name?.toLowerCase().includes(qLower)) ||
+          card.customers.some((c) =>
+            c.sale_orders.some((so) => so.sale_order_number?.toLowerCase().includes(qLower))
+          )
         );
-        const matchSO = card.customers.some((c) =>
-          c.sale_orders.some((so) => so.sale_order_number?.toLowerCase().includes(qLower))
-        );
-        return matchCard || matchCustomer || matchSO;
       })
     : cards;
 
+  const deliveredCount = cards.filter((c) => c.status === 'delivered').length;
+  const archivedCount = cards.filter((c) => c.status !== 'delivered').length;
+
   return (
     <div className="p-6 max-w-5xl mx-auto">
-      <div className="flex items-center gap-3 mb-6">
-        <Archive className="w-5 h-5 text-slate-700" />
-        <h1 className="text-xl font-bold text-black">Archive</h1>
-        <span className="text-sm text-slate-400">({cards.length} cards)</span>
+      <div className="flex items-center gap-3 mb-2">
+        <History className="w-5 h-5 text-slate-700" />
+        <h1 className="text-xl font-bold text-black">History</h1>
       </div>
+      <p className="text-xs text-slate-400 mb-6">
+        {deliveredCount} delivered · {archivedCount} archived
+      </p>
 
       {/* Search */}
       <div className="relative mb-6">
@@ -59,16 +63,20 @@ export default function ArchiveClient({ cards }: ArchiveClientProps) {
 
       {filtered.length === 0 ? (
         <div className="text-center py-16 text-slate-400">
-          <Archive className="w-12 h-12 mx-auto mb-3 opacity-40" />
+          <History className="w-12 h-12 mx-auto mb-3 opacity-40" />
           <p className="text-sm font-medium">
-            {q ? 'No archived cards matching your search' : 'No archived cards yet'}
+            {q ? 'No cards matching your search' : 'No history yet'}
           </p>
+          {!q && (
+            <p className="text-xs mt-1">Completed deliveries will appear here</p>
+          )}
         </div>
       ) : (
         <div className="space-y-3">
           {filtered.map((card) => {
             const customerNames = card.customers.map((c) => c.customer_name);
             const allSOs = card.customers.flatMap((c) => c.sale_orders.map((so) => so.sale_order_number));
+            const isDelivered = card.status === 'delivered';
             return (
               <Link
                 key={card.id}
@@ -77,7 +85,7 @@ export default function ArchiveClient({ cards }: ArchiveClientProps) {
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <span className="font-mono text-xs text-crimson-700">{card.delivery_ref}</span>
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusColor(card.status as never)}`}>
                         {statusLabel(card.status as never)}
@@ -93,13 +101,15 @@ export default function ArchiveClient({ cards }: ArchiveClientProps) {
                       </p>
                     )}
                   </div>
-                  <div className="text-right flex-shrink-0">
+                  <div className="text-right flex-shrink-0 text-xs text-slate-400">
                     {card.planned_date && (
-                      <p className="text-xs text-slate-500">{formatDate(card.planned_date)}</p>
+                      <p className="text-slate-500">{formatDate(card.planned_date)}</p>
                     )}
-                    {card.archived_at && (
-                      <p className="text-xs text-slate-400">Archived {formatDate(card.archived_at)}</p>
-                    )}
+                    {isDelivered ? (
+                      <p>Delivered {formatDate(card.created_at)}</p>
+                    ) : card.archived_at ? (
+                      <p>Archived {formatDate(card.archived_at)}</p>
+                    ) : null}
                   </div>
                 </div>
               </Link>

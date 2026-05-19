@@ -16,17 +16,19 @@ export async function GET(req: NextRequest) {
   const admin = createSupabaseAdminClient();
 
   if (!includeCustomers) {
-    const { data: cards, error } = await admin
+    let q = admin
       .from('delivery_cards')
       .select('*')
       .eq('is_archived', isArchived)
       .order('created_at', { ascending: false });
+    if (!isArchived) q = q.neq('status', 'delivered');
+    const { data: cards, error } = await q;
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ cards: cards ?? [] });
   }
 
   // Full query with relations
-  const { data: rawCards, error } = await admin
+  let fullQuery = admin
     .from('delivery_cards')
     .select(`
       *,
@@ -40,6 +42,13 @@ export async function GET(req: NextRequest) {
     `)
     .eq('is_archived', isArchived)
     .order('created_at', { ascending: false });
+
+  // Board view: exclude delivered cards (they belong in History)
+  if (!isArchived) {
+    fullQuery = fullQuery.neq('status', 'delivered');
+  }
+
+  const { data: rawCards, error } = await fullQuery;
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

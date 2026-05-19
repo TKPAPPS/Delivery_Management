@@ -28,6 +28,10 @@ export default function KanbanColumn({ status, cards }: KanbanColumnProps) {
       container: 'bg-emerald-50/50 border-emerald-200',
       badge: 'bg-emerald-100 text-emerald-700',
     },
+    delivered: {
+      container: 'bg-teal-50/50 border-teal-200',
+      badge: 'bg-teal-100 text-teal-700',
+    },
   };
 
   const headerTextColors: Record<DeliveryStatus, string> = {
@@ -35,6 +39,7 @@ export default function KanbanColumn({ status, cards }: KanbanColumnProps) {
     driver_needed: 'text-gold-700',
     driver_booked: 'text-crimson-700',
     loaded: 'text-emerald-700',
+    delivered: 'text-teal-700',
   };
 
   const styles = columnStyles[status];
