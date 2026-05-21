@@ -187,6 +187,47 @@ To switch to private storage: change the bucket policy to private in the Supabas
 Run `vercel --prod` after setting all env vars in Vercel dashboard.
 Add the Vercel URL to Supabase Authentication → URL Configuration.
 
+## Orders (Phase 2)
+
+The `orders` table is the new order-based workflow alongside the old delivery card system.
+
+### Order sources
+- `manual` — created by users via UI; `created_by` is always set
+- `odoo` — imported via sync (Phase 3, not yet built); `created_by` may be null
+
+### Priority
+Integer 1–5. Default 3 (Medium). Labels: 1=Lowest, 2=Low, 3=Medium, 4=High, 5=Critical.
+
+### Order status flow
+`pending` → `assigned` → `partial` → `completed` (or `cancelled` at any point)
+
+### Order line status
+`pending` → `partial` → `sent` (updated by warehouse workflow, Phase 4)
+
+### Soft delete
+Orders and order lines use `deleted_at timestamptz`. Never set `deleted_at` from the client. DELETE endpoints set it server-side.
+
+### API conventions
+- `source`, `order_ref`, `created_by`, `qty_sent`, `deleted_at` are never accepted from client
+- Priority and qty_ordered are validated server-side (400 if invalid)
+- Lines on completed/cancelled orders return 409
+
+### Activity log for orders
+```typescript
+await logActivity(null, user.id, ACTIONS.ORDER_CREATED, { order_ref }, { entity_type: 'order', entity_id: order.id });
+```
+The first param is `null` (no delivery_card_id). Existing card calls pass a string — no change needed.
+
+### Order API routes
+- `GET/POST /api/orders` — list (with line count enrichment) + create
+- `GET/PATCH/DELETE /api/orders/[id]` — detail + update (whitelisted fields) + soft delete (admin)
+- `GET/POST /api/orders/[id]/lines` — list non-deleted lines + add line
+- `PATCH/DELETE /api/order-lines/[id]` — update line (whitelisted) + soft delete
+
+### Order pages
+- `/orders` — Orders Pool client page with filters (status/priority/source/search)
+- `/orders/[id]` — server page → OrderDetailClient (edit, lines management, activity log)
+
 ## Key Files
 
 - `src/middleware.ts` — auth guard for all routes; early-returns for `/api/*` routes to prevent redirect swallowing
@@ -201,7 +242,11 @@ Add the Vercel URL to Supabase Authentication → URL Configuration.
 - `src/components/cards/CommunicationPanel.tsx` — manual LINE/email sends + email summary from card detail
 - `src/components/cards/AttachmentSection.tsx` — file upload/view/delete with signed URLs
 - `src/app/api/cards/[id]/send-summary/route.ts` — email summary with 24-hour attachment links
-- `supabase/schema.sql` — full DB schema
+- `supabase/schema.sql` — full DB schema (base)
 - `supabase/migration_logistics_v2.sql` — delivery method columns, courier/cargo/line_groups/communication_events tables
 - `supabase/migration_messaging_api_v3.sql` — idempotent; renames line_groups.notify_token → line_target_id (no-op if already renamed)
+- `supabase/migration_ops_platform_v1.sql` — Phase 1 ops platform schema (vehicles, orders, order_lines, trips, trip_orders, trip_order_lines, tasks, notifications, pinned_items)
 - `supabase/seed.sql` — first admin setup
+- `src/app/(protected)/orders/page.tsx` — Orders Pool (client page)
+- `src/app/(protected)/orders/[id]/OrderDetailClient.tsx` — order detail (edit, lines, activity)
+- `src/components/orders/CreateOrderModal.tsx` — manual order creation form

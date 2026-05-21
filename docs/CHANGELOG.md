@@ -1,5 +1,99 @@
 # Changelog
 
+## 2026-05-21 — Phase 2: Orders Pool (manual orders, lines, UI)
+
+### New features
+
+**Orders Pool (`/orders`)**
+- New page listing all non-deleted orders, sorted by priority descending
+- Filters: status, priority (1–5), source (manual/odoo), full-text search across ref/customer/destination/notes
+- Priority labels: 1=Lowest, 2=Low, 3=Medium, 4=High, 5=Critical
+- Each row links to the order detail page
+
+**Manual order creation**
+- `CreateOrderModal` — customer from `customer_directory` or manual text; destination from `destinations` or manual text; priority 1–5 (default 3); notes; order lines with product name, code, SO#, qty, notes
+- Client validation (required product name, qty > 0, customer required)
+- `source` is always set to `'manual'` server-side — client cannot submit source or created_by
+- After creation, redirects to `/orders/[id]`
+
+**Order detail (`/orders/[id]`)**
+- Inline edit for notes and priority (manual orders only; completed/cancelled orders are read-only)
+- Order lines table: ordered/sent/remaining qty, status badge
+- Add line inline (row at bottom of table)
+- Edit line inline (row turns into inputs on pencil click)
+- Soft-delete line (ConfirmDialog)
+- Soft-delete order (admin only, ConfirmDialog)
+- Activity log section at bottom
+
+**Navigation**
+- Sidebar: "Orders" item added above Board; old Board/Planning Queue/Archive/Admin items unchanged
+
+### API routes added
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| GET | `/api/orders` | List orders; filters: status, priority, source; enriched with line counts |
+| POST | `/api/orders` | Create manual order + lines |
+| GET | `/api/orders/[id]` | Order with customer/destination joins + lines + activity |
+| PATCH | `/api/orders/[id]` | Update whitelisted fields (customer, destination, priority, notes, status) |
+| DELETE | `/api/orders/[id]` | Soft delete (admin only) |
+| GET | `/api/orders/[id]/lines` | Non-deleted lines for order |
+| POST | `/api/orders/[id]/lines` | Add line; blocked if order completed/cancelled |
+| PATCH | `/api/order-lines/[id]` | Update whitelisted line fields |
+| DELETE | `/api/order-lines/[id]` | Soft delete line |
+
+### Data validation
+
+- `priority`: integer 1–5, default 3; rejected server-side if out of range
+- `qty_ordered`: positive integer, rejected if ≤ 0
+- `product_name`: required, rejected if blank
+- Customer: at least one of `customer_id` or `customer_name_manual` required
+- `source`, `order_ref`, `created_by`, `qty_sent`, `deleted_at` are never accepted from client
+- Lines blocked on completed/cancelled orders (409 Conflict)
+
+### Activity log
+
+New entries use `entity_type = 'order'`, `entity_id = order.id`, `delivery_card_id = null`:
+- `order_created`, `order_updated`, `order_deleted`
+- `order_line_added`, `order_line_updated`, `order_line_deleted`
+
+`logActivity()` updated: first param is now `string | null` (backward compatible); new optional `options.entity_type` / `options.entity_id` params.
+
+### Type system
+
+- `UserRole` extended with `'warehouse'`
+- New types: `OrderSource`, `OrderStatus`, `OrderLineStatus`, `Order`, `OrderLine`, `OrderListItem`, `OrderWithLines`
+- New utils: `orderPriorityLabel`, `orderPriorityColor`, `orderStatusLabel`, `orderStatusColor`
+
+### Not in this phase
+
+Odoo sync, trips, warehouse workflow, split shipment, delivery_cards migration — all deferred.
+
+---
+
+## 2026-05-21 — Phase 1: Operations Platform schema (DB only)
+
+### New tables
+
+`vehicles`, `odoo_sync_logs`, `orders`, `order_lines`, `trips`, `trip_orders`, `trip_order_lines`, `tasks`, `notifications`, `pinned_items`
+
+### Extended tables
+
+`activity_log`, `attachments`, `comments` — new `entity_type`/`entity_id` columns for polymorphic linking
+`customer_directory` — new `line_user_id` column
+
+### Enum
+
+`user_role` extended with `'warehouse'` value
+
+### Migration files
+
+- `supabase/migration_ops_platform_v1.sql` — run as two calls due to PostgreSQL enum transaction isolation (ADD VALUE must commit before referencing in same batch):
+  1. `ops_platform_v1_enum` — `ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'warehouse'`
+  2. `ops_platform_v1_tables` — all 10 tables, indexes, RLS policies, ALTER statements
+
+---
+
 ## 2026-05-19 — LINE Messaging API, attachment hardening, email summary
 
 ### Breaking changes
