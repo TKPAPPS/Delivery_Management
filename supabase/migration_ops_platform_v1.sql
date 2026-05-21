@@ -231,7 +231,7 @@ CREATE TABLE IF NOT EXISTS order_lines (
   deleted_at        timestamptz,
   created_at        timestamptz NOT NULL DEFAULT now(),
   updated_at        timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT order_lines_qty_sent_check CHECK (qty_sent <= qty_ordered)
+  CONSTRAINT order_lines_qty_balance_check CHECK (qty_sent <= qty_ordered)
 );
 
 DROP TRIGGER IF EXISTS order_lines_updated_at ON order_lines;
