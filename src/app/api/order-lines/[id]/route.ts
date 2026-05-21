@@ -3,10 +3,16 @@ import { getSessionUser, createSupabaseAdminClient } from '@/lib/supabase-server
 import { logActivity, ACTIONS } from '@/lib/activity';
 import { parseBody } from '@/lib/parse-body';
 
+const CAN_WRITE_ROLES = ['admin', 'sales'];
+
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const ctx = await getSessionUser();
   if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const { user } = ctx;
+  const { user, profile } = ctx;
+
+  if (!CAN_WRITE_ROLES.includes(profile.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
 
   const parsed = await parseBody(req);
   if ('error' in parsed) return parsed.error;
@@ -48,6 +54,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: 'Product name cannot be empty' }, { status: 400 });
   }
 
+  if (Object.keys(allowed).length === 0) {
+    return NextResponse.json({ error: 'No editable fields provided' }, { status: 400 });
+  }
+
   const { data: updated, error } = await admin.from('order_lines').update(allowed).eq('id', params.id).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -65,7 +75,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   const ctx = await getSessionUser();
   if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const { user } = ctx;
+  const { user, profile } = ctx;
+
+  if (!CAN_WRITE_ROLES.includes(profile.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
 
   const admin = createSupabaseAdminClient();
 

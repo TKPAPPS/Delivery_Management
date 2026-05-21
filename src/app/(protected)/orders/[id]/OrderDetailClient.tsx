@@ -209,7 +209,8 @@ export default function OrderDetailClient({ initialOrder, role }: Props) {
     }
   };
 
-  const isEditable = order.status !== 'completed' && order.status !== 'cancelled' && order.source === 'manual';
+  const canWrite = ['admin', 'sales'].includes(role);
+  const isEditable = canWrite && order.status !== 'completed' && order.status !== 'cancelled' && order.source === 'manual';
 
   return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto">

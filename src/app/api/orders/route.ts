@@ -3,6 +3,10 @@ import { getSessionUser, createSupabaseAdminClient } from '@/lib/supabase-server
 import { logActivity, ACTIONS } from '@/lib/activity';
 import { parseBody } from '@/lib/parse-body';
 
+// Only admin and sales may create or mutate orders in Phase 2.
+// Logistics and warehouse are read-only.
+const CAN_WRITE_ROLES = ['admin', 'sales'];
+
 export async function GET(req: NextRequest) {
   const ctx = await getSessionUser();
   if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -55,7 +59,11 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const ctx = await getSessionUser();
   if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const { user } = ctx;
+  const { user, profile } = ctx;
+
+  if (!CAN_WRITE_ROLES.includes(profile.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
 
   const parsed = await parseBody(req);
   if ('error' in parsed) return parsed.error;

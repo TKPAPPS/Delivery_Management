@@ -3,6 +3,8 @@ import { getSessionUser, createSupabaseAdminClient } from '@/lib/supabase-server
 import { logActivity, ACTIONS } from '@/lib/activity';
 import { parseBody } from '@/lib/parse-body';
 
+const CAN_WRITE_ROLES = ['admin', 'sales'];
+
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const ctx = await getSessionUser();
   if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -41,7 +43,12 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const ctx = await getSessionUser();
   if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const { user } = ctx;
+  const { user, profile } = ctx;
+
+  // Logistics and warehouse are read-only in Phase 2
+  if (!CAN_WRITE_ROLES.includes(profile.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
 
   const parsed = await parseBody(req);
   if ('error' in parsed) return parsed.error;
@@ -51,12 +58,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const { data: existing } = await admin.from('orders').select('*').eq('id', params.id).is('deleted_at', null).single();
   if (!existing) return NextResponse.json({ error: 'Order not found' }, { status: 404 });
 
-  // Whitelist editable fields — never allow source/order_ref/created_by/deleted_at from client
+  // Whitelist editable fields.
+  // status is intentionally excluded: no workflow exists yet to drive status transitions.
   const allowed: Record<string, unknown> = {};
   const editableFields = [
     'customer_id', 'customer_name_manual',
     'destination_id', 'destination_manual',
-    'notes', 'status',
+    'notes',
   ];
   for (const field of editableFields) {
     if (field in body) allowed[field] = (body[field] as unknown) ?? null;
@@ -71,10 +79,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     allowed.priority = p;
   }
 
-  // Status validation
-  const validStatuses = ['pending', 'assigned', 'partial', 'completed', 'cancelled'];
-  if ('status' in allowed && !validStatuses.includes(allowed.status as string)) {
-    return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
+  if (Object.keys(allowed).length === 0) {
+    return NextResponse.json({ error: 'No editable fields provided' }, { status: 400 });
   }
 
   const { data: updated, error } = await admin.from('orders').update(allowed).eq('id', params.id).select().single();
@@ -96,6 +102,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { user, profile } = ctx;
 
+  // Soft delete is admin-only
   if (profile.role !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
