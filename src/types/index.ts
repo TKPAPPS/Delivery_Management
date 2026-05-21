@@ -1,4 +1,7 @@
-export type UserRole = 'admin' | 'sales' | 'stock_manager' | 'logistics';
+export type UserRole = 'admin' | 'sales' | 'stock_manager' | 'logistics' | 'warehouse';
+export type OrderSource = 'odoo' | 'manual';
+export type OrderStatus = 'pending' | 'assigned' | 'partial' | 'completed' | 'cancelled';
+export type OrderLineStatus = 'pending' | 'partial' | 'sent';
 export type DeliveryStatus = 'draft' | 'pending_booking' | 'booked' | 'in_transit' | 'delivered';
 export type DeliveryMethod = 'car' | 'post' | 'air' | 'other';
 export type DeliveryPriority = 'normal' | 'urgent';
@@ -208,6 +211,55 @@ export interface PlanningQueueItem {
   sort_order: number;
   created_by: string | null;
   created_at: string;
+}
+
+export interface Order {
+  id: string;
+  order_ref: string;
+  source: OrderSource;
+  odoo_order_ref: string | null;
+  odoo_sync_log_id: string | null;
+  customer_id: string | null;
+  customer_name_manual: string | null;
+  destination_id: string | null;
+  destination_manual: string | null;
+  priority: number;
+  status: OrderStatus;
+  notes: string | null;
+  created_by: string | null;
+  deleted_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrderLine {
+  id: string;
+  order_id: string;
+  product_name: string;
+  product_code: string | null;
+  sale_order_number: string | null;
+  qty_ordered: number;
+  qty_sent: number;
+  status: OrderLineStatus;
+  notes: string | null;
+  deleted_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type OrderListItem = Order & {
+  customer: Pick<CustomerDirectory, 'id' | 'name'> | null;
+  destination: Pick<Destination, 'id' | 'name'> | null;
+  creator: Pick<Profile, 'id' | 'name' | 'email'> | null;
+  _count: { lines: number };
+};
+
+export interface OrderWithLines extends Order {
+  lines: OrderLine[];
+  customer: Pick<CustomerDirectory, 'id' | 'name'> | null;
+  destination: Pick<Destination, 'id' | 'name'> | null;
+  creator: Pick<Profile, 'id' | 'name' | 'email'> | null;
+  activity_log: Array<ActivityLog & { profile: Pick<Profile, 'id' | 'name' | 'email'> | null }>;
 }
 
 // App-level composite types

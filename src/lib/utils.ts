@@ -58,6 +58,38 @@ export function priorityLabel(priority: DeliveryPriority): string {
   return priority === 'urgent' ? 'Urgent' : 'Normal';
 }
 
+export function orderPriorityLabel(priority: number): string {
+  const labels: Record<number, string> = { 1: 'Lowest', 2: 'Low', 3: 'Medium', 4: 'High', 5: 'Critical' };
+  return labels[priority] ?? String(priority);
+}
+
+export function orderPriorityColor(priority: number): string {
+  if (priority === 5) return 'bg-red-100 text-red-700';
+  if (priority === 4) return 'bg-orange-100 text-orange-700';
+  if (priority === 3) return 'bg-amber-100 text-amber-700';
+  if (priority === 2) return 'bg-sky-100 text-sky-700';
+  return 'bg-slate-100 text-slate-600';
+}
+
+export function orderStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    pending: 'Pending', assigned: 'Assigned', partial: 'Partial',
+    completed: 'Completed', cancelled: 'Cancelled',
+  };
+  return labels[status] ?? status;
+}
+
+export function orderStatusColor(status: string): string {
+  const colors: Record<string, string> = {
+    pending: 'bg-slate-100 text-slate-700',
+    assigned: 'bg-blue-100 text-blue-700',
+    partial: 'bg-amber-100 text-amber-700',
+    completed: 'bg-emerald-100 text-emerald-700',
+    cancelled: 'bg-red-100 text-red-700',
+  };
+  return colors[status] ?? 'bg-gray-100 text-gray-600';
+}
+
 export function timeAgo(dateString: string): string {
   const now = new Date();
   const date = new Date(dateString);

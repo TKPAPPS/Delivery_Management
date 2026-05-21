@@ -1,10 +1,11 @@
 import { createSupabaseAdminClient } from './supabase-server';
 
 export async function logActivity(
-  deliveryCardId: string,
+  deliveryCardId: string | null,
   userId: string | null,
   action: string,
-  metadata?: Record<string, unknown>
+  metadata?: Record<string, unknown>,
+  options?: { entity_type?: string; entity_id?: string }
 ) {
   try {
     const supabase = createSupabaseAdminClient();
@@ -13,6 +14,8 @@ export async function logActivity(
       user_id: userId,
       action,
       metadata: metadata ?? null,
+      entity_type: options?.entity_type ?? null,
+      entity_id: options?.entity_id ?? null,
     });
   } catch (err) {
     // Never throw — log errors silently
@@ -22,6 +25,7 @@ export async function logActivity(
 
 // Common action constants
 export const ACTIONS = {
+  // Delivery card actions (legacy)
   CARD_CREATED: 'card_created',
   STATUS_CHANGED: 'status_changed',
   PRIORITY_CHANGED: 'priority_changed',
@@ -40,4 +44,11 @@ export const ACTIONS = {
   SALE_ORDER_REMOVED: 'sale_order_removed',
   EXTRA_ITEM_ADDED: 'extra_item_added',
   EXTRA_ITEM_REMOVED: 'extra_item_removed',
+  // Order actions (ops platform)
+  ORDER_CREATED: 'order_created',
+  ORDER_UPDATED: 'order_updated',
+  ORDER_DELETED: 'order_deleted',
+  ORDER_LINE_ADDED: 'order_line_added',
+  ORDER_LINE_UPDATED: 'order_line_updated',
+  ORDER_LINE_DELETED: 'order_line_deleted',
 } as const;
