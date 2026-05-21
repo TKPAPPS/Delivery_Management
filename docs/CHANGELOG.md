@@ -1,5 +1,65 @@
 # Changelog
 
+## 2026-05-21 — Phase 3: Odoo Read-Only Sync
+
+### New features
+
+**Odoo sync (`POST /api/sync/odoo`)**
+- Manual sync trigger: admin-only, reads confirmed Odoo sale orders (`state in ['sale', 'done']`)
+- Optional `since` date filter via request body (`write_date >= since`)
+- Concurrent sync guard: returns 409 if a sync started within the last 10 minutes is still `running`
+- Clear 503 if Odoo env vars are not all configured
+- Each sync run creates an `odoo_sync_logs` row; updated with final counts on completion or failure
+
+**Order upsert logic**
+- `odoo_order_ref` (Odoo `sale.order.name`) is the dedup key; `order_ref` is always DB-generated
+- New orders: `source='odoo'`, `priority=3`, `status='pending'`; never overwritten after first import
+- Existing orders: `customer_name_manual`, `destination_manual`, `notes` updated; status/priority untouched
+- Lines upserted by `(order_id, odoo_line_id)` using new `odoo_line_id` + `odoo_product_id` columns
+- Lines with `qty_sent > 0` are never overwritten; warning logged in `error_details`
+- Lines removed from Odoo are soft-deleted if `qty_sent == 0`; skipped otherwise
+
+**Product resolution (two-pass)**
+- First pass: read `sale.order.line` fields
+- Second pass: batch read `product.product` for unique product IDs → `default_code` + `display_name`
+- Fallback: `sale.order.line.name` (first line) if product lookup fails
+
+**Admin sync page (`/admin/odoo-sync`)**
+- Config status panel: shows which of the four env vars are set (✓/✗), never exposes values
+- "Sync Now" button + optional date filter
+- Post-sync result summary: fetched / created / updated / skipped / errors / duration
+- Recent syncs table (last 20) with expandable error details per row
+- Admin-only (logistics users see redirect to `/dashboard`)
+
+### DB migration
+
+`supabase/migration_odoo_sync_v1.sql` — applied 2026-05-21:
+- `odoo_sync_logs`: +`fetched_count`, `created_count`, `updated_count`, `skipped_count`, `error_count`, `error_details` (jsonb)
+- `order_lines`: +`odoo_line_id` (bigint nullable), `odoo_product_id` (bigint nullable)
+- Partial unique index: `(order_id, odoo_line_id) WHERE odoo_line_id IS NOT NULL AND deleted_at IS NULL`
+
+### New files
+
+| File | Purpose |
+|------|---------|
+| `src/lib/odoo.ts` | XML-RPC client: `odooAuthenticate`, `odooExecuteKw`, `odooConfigured`, 30s timeout |
+| `src/app/api/sync/odoo/route.ts` | `POST` — trigger sync (admin only) |
+| `src/app/api/sync/odoo/logs/route.ts` | `GET` — last 20 sync logs (admin only) |
+| `src/components/sync/SyncTrigger.tsx` | Client component: config status, sync button, results, log table |
+| `src/app/(admin)/admin/odoo-sync/page.tsx` | Server page: passes config status + initial logs to SyncTrigger |
+| `supabase/migration_odoo_sync_v1.sql` | DB schema additions |
+
+### Dependencies added
+
+- `xmlrpc` ^1.3.2 (zero-dep, Node.js runtime; handles Odoo XML-RPC serialization)
+- `@types/xmlrpc` ^1.3.10 (dev)
+
+### Out of scope
+
+Scheduled sync, Odoo writeback, webhooks, customer_directory FK linking, trips, warehouse workflow.
+
+---
+
 ## 2026-05-21 — Phase 2: Orders Pool (manual orders, lines, UI)
 
 ### New features

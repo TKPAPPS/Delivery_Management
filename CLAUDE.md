@@ -228,6 +228,38 @@ The first param is `null` (no delivery_card_id). Existing card calls pass a stri
 - `/orders` — Orders Pool client page with filters (status/priority/source/search)
 - `/orders/[id]` — server page → OrderDetailClient (edit, lines management, activity log)
 
+## Odoo Sync (Phase 3)
+
+Read-only import of confirmed Odoo 18 sale orders. No writeback. Manual trigger only.
+
+### Connection
+- Protocol: XML-RPC over HTTPS (`xmlrpc` npm package, `export const runtime = 'nodejs'` required)
+- Auth: `authenticate(db, username, api_key, {})` on `/xmlrpc/2/common` → uid
+- Data: `execute_kw(...)` on `/xmlrpc/2/object`
+- Timeout: 30 seconds per request
+
+### Required environment variables
+`ODOO_URL`, `ODOO_DB`, `ODOO_USERNAME`, `ODOO_API_KEY` — all must be set or sync returns 503.
+
+### Sync state filter
+Defined in `src/lib/odoo.ts` as `ODOO_SYNC_STATES = ['sale', 'done']`. Edit here to change.
+
+### Dedup key
+`odoo_order_ref` (Odoo `sale.order.name`, e.g. `S00001`). `order_ref` is always DB-generated — never set from Odoo.
+
+### Line identity
+`order_lines.odoo_line_id` (Odoo line id) + partial unique index `(order_id, odoo_line_id) WHERE odoo_line_id IS NOT NULL AND deleted_at IS NULL`. Lines with `qty_sent > 0` are never overwritten; logged as warnings in `error_details`.
+
+### Product resolution
+Two-pass: read `sale.order.line` fields, then batch read `product.product` for unique product IDs to get `default_code` + `display_name`.
+
+### Sync route design
+- `POST /api/sync/odoo` — admin only; optional body `{ since?: string }`; 409 if already running; 503 if unconfigured
+- `GET /api/sync/odoo/logs` — admin only; last 20 `odoo_sync_logs` rows
+
+### Admin page
+`/admin/odoo-sync` — admin only (logistics redirected to dashboard). Shows config status, sync trigger, result summary, log history with expandable error details.
+
 ## Key Files
 
 - `src/middleware.ts` — auth guard for all routes; early-returns for `/api/*` routes to prevent redirect swallowing
@@ -246,7 +278,13 @@ The first param is `null` (no delivery_card_id). Existing card calls pass a stri
 - `supabase/migration_logistics_v2.sql` — delivery method columns, courier/cargo/line_groups/communication_events tables
 - `supabase/migration_messaging_api_v3.sql` — idempotent; renames line_groups.notify_token → line_target_id (no-op if already renamed)
 - `supabase/migration_ops_platform_v1.sql` — Phase 1 ops platform schema (vehicles, orders, order_lines, trips, trip_orders, trip_order_lines, tasks, notifications, pinned_items)
+- `supabase/migration_odoo_sync_v1.sql` — Phase 3 Odoo sync schema (odoo_sync_logs columns, order_lines odoo_line_id/odoo_product_id, partial unique index)
 - `supabase/seed.sql` — first admin setup
+- `src/lib/odoo.ts` — Odoo XML-RPC client (authenticate, executeKw, 30s timeout)
 - `src/app/(protected)/orders/page.tsx` — Orders Pool (client page)
 - `src/app/(protected)/orders/[id]/OrderDetailClient.tsx` — order detail (edit, lines, activity)
 - `src/components/orders/CreateOrderModal.tsx` — manual order creation form
+- `src/app/api/sync/odoo/route.ts` — POST sync trigger (admin only)
+- `src/app/api/sync/odoo/logs/route.ts` — GET sync log history (admin only)
+- `src/app/(admin)/admin/odoo-sync/page.tsx` — Odoo sync admin page
+- `src/components/sync/SyncTrigger.tsx` — sync UI client component

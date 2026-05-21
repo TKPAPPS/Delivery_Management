@@ -1,0 +1,117 @@
+import xmlrpc from 'xmlrpc';
+
+// ---------------------------------------------------------------------------
+// Odoo raw API response shapes
+// ---------------------------------------------------------------------------
+
+export interface OdooSaleOrder {
+  id: number;
+  name: string;
+  partner_id: [number, string] | false;
+  partner_shipping_id: [number, string] | false;
+  note: string | false;
+}
+
+export interface OdooOrderLine {
+  id: number;
+  order_id: [number, string];
+  product_id: [number, string] | false;
+  name: string;
+  product_uom_qty: number;
+}
+
+export interface OdooProduct {
+  id: number;
+  default_code: string | false;
+  display_name: string;
+}
+
+// ---------------------------------------------------------------------------
+// Configurable sync filter — edit here to adjust which Odoo orders are synced
+// ---------------------------------------------------------------------------
+
+export const ODOO_SYNC_STATES = ['sale', 'done'] as const;
+
+const ODOO_TIMEOUT_MS = 30_000;
+
+// ---------------------------------------------------------------------------
+// Config check
+// ---------------------------------------------------------------------------
+
+export function odooConfigured(): boolean {
+  return !!(
+    process.env.ODOO_URL &&
+    process.env.ODOO_DB &&
+    process.env.ODOO_USERNAME &&
+    process.env.ODOO_API_KEY
+  );
+}
+
+// ---------------------------------------------------------------------------
+// XML-RPC client factory
+// ---------------------------------------------------------------------------
+
+function makeClient(path: string): xmlrpc.Client {
+  const base = process.env.ODOO_URL!;
+  const url = new URL(path, base);
+  const isHttps = url.protocol === 'https:';
+  const port = url.port ? parseInt(url.port, 10) : (isHttps ? 443 : 80);
+  const options = { host: url.hostname, port, path: url.pathname };
+  return isHttps ? xmlrpc.createSecureClient(options) : xmlrpc.createClient(options);
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error(`Odoo request timed out after ${ms}ms`)), ms),
+  );
+  return Promise.race([promise, timeout]);
+}
+
+function callRpc(client: xmlrpc.Client, method: string, params: unknown[]): Promise<unknown> {
+  return withTimeout(
+    new Promise((resolve, reject) => {
+      client.methodCall(method, params as any[], (err: Object, value: unknown) => {
+        if (err) reject(err);
+        else resolve(value);
+      });
+    }),
+    ODOO_TIMEOUT_MS,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+export async function odooAuthenticate(): Promise<number> {
+  const client = makeClient('/xmlrpc/2/common');
+  const uid = await callRpc(client, 'authenticate', [
+    process.env.ODOO_DB!,
+    process.env.ODOO_USERNAME!,
+    process.env.ODOO_API_KEY!,
+    {},
+  ]);
+  if (typeof uid !== 'number' || uid === 0) {
+    throw new Error('Odoo authentication failed: check credentials');
+  }
+  return uid;
+}
+
+export async function odooExecuteKw(
+  uid: number,
+  model: string,
+  method: string,
+  args: unknown[],
+  kwargs: Record<string, unknown> = {},
+): Promise<unknown> {
+  const client = makeClient('/xmlrpc/2/object');
+  return callRpc(client, 'execute_kw', [
+    process.env.ODOO_DB!,
+    uid,
+    process.env.ODOO_API_KEY!,
+    model,
+    method,
+    args,
+    kwargs,
+  ]);
+}

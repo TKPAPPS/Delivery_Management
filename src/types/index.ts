@@ -245,6 +245,33 @@ export interface OrderLine {
   deleted_at: string | null;
   created_at: string;
   updated_at: string;
+  odoo_line_id: number | null;
+  odoo_product_id: number | null;
+}
+
+export type OdooSyncStatus = 'running' | 'completed' | 'failed';
+
+export interface OdooSyncErrorEntry {
+  order_ref?: string;
+  odoo_line_id?: number;
+  reason: string;
+}
+
+export interface OdooSyncLog {
+  id: string;
+  started_at: string;
+  finished_at: string | null;
+  status: OdooSyncStatus;
+  records_imported: number | null;
+  records_skipped: number | null;
+  error: string | null;
+  triggered_by: string | null;
+  fetched_count: number | null;
+  created_count: number | null;
+  updated_count: number | null;
+  skipped_count: number | null;
+  error_count: number | null;
+  error_details: OdooSyncErrorEntry[] | null;
 }
 
 export type OrderListItem = Order & {

@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Columns, History, Users, Truck, ClipboardList, BookUser, Settings, X, Mail, Plane, MessageSquare, ShoppingCart } from 'lucide-react';
+import { LayoutDashboard, Columns, History, Users, Truck, ClipboardList, BookUser, Settings, X, Mail, Plane, MessageSquare, ShoppingCart, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SidebarProps {
@@ -24,6 +24,7 @@ const adminNav = [
   { href: '/admin/courier-companies', label: 'Couriers', icon: Mail },
   { href: '/admin/cargo-companies', label: 'Cargo Co.', icon: Plane },
   { href: '/admin/communications', label: 'Communications', icon: MessageSquare },
+  { href: '/admin/odoo-sync', label: 'Odoo Sync', icon: RefreshCw },
   { href: '/admin/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -78,6 +79,7 @@ export default function Sidebar({ role, onNavClick }: SidebarProps) {
                 .filter((item) => {
                   if (item.href === '/admin/users') return role === 'admin';
                   if (item.href === '/admin/communications') return role === 'admin';
+                  if (item.href === '/admin/odoo-sync') return role === 'admin';
                   return true;
                 })
                 .map((item) => <NavItem key={item.href} {...item} />)}
