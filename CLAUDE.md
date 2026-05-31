@@ -119,6 +119,39 @@ Common action constants are exported from `ACTIONS` in `src/lib/activity.ts`. Fo
 
 All app types live in `src/types/index.ts`. The `Database` type is manually maintained (not Supabase-generated) — update it when schema changes. Composite types like `DeliveryCardFull`, `DeliveryCardWithCustomers`, `OrderWithLines`, `OrderListItem` are defined there too.
 
+> **Schema drift warning:** `supabase/schema.sql` is the original base and is **stale** — it predates the status enum rename (`draft/pending_booking/booked/in_transit/delivered`), the `delivery_method` column, and later migrations. The live DB is the source of truth. **Query the live database before writing any migration** (project ref `jcfxuilzylsfxfsbinak`, "Delivery Management Tkp"). Some live column names also differ from `src/types/index.ts` (e.g. live `courier_company_name`/`mawb_number`/`cargo_etd` vs the type's `courier_name`/`mawb`/`etd`) — `LogisticsSection` post/air/other saves are affected by this latent mismatch; don't assume the types match the DB for those fields.
+
+## Cross-Section Sync (single source of truth)
+
+There is **one** record per delivery: a row in `delivery_cards`. The Planning Queue, the Dashboard "Draft" panel, and the board's Draft column are all **views of the same `status='draft'` rows** — there is no separate planning-queue store anymore.
+
+- **Planning Queue** (`/planning-queue`) lists `delivery_cards` where `status='draft'`, ordered by `sort_order` then `created_at`. "Add to Queue" creates a draft card via `POST /api/cards` (destination defaults to `'Unassigned'`). "To Board" promotes it (`PATCH /api/cards/[id]/status` → `pending_booking`). Reorder persists `sort_order` via `PATCH /api/cards/[id]`.
+- **Dashboard Draft panel** (`dashboard/page.tsx`) filters the same draft cards.
+- **Unload a customer** (`PATCH /api/customers/[id]` with `unload`) spins off a **new draft card** and reassigns the customer (sale orders + extra items follow via FK) — it no longer writes to the legacy `planning_queue` table.
+- **Deleting drafts:** `DELETE /api/cards/[id]` allows any active user to delete a `status='draft'` card (Planning Queue removal); deleting non-draft cards stays admin-only.
+
+The legacy `planning_queue` table and its `/api/planning-queue` routes still exist but are **unused** (empty after the unification migration). Do not write new code against them.
+
+## Delivery Type
+
+`delivery_cards.delivery_type` (`'our_motorcycle' | 'company_motorcycle' | null`) is a **separate field** from `delivery_method` (`car/post/air/other`). Selectable in `CreateCardModal` and `LogisticsSection`; shown as a chip in the logistics header. Validated server-side in `POST /api/cards`; passes through the `PATCH /api/cards/[id]` body.
+
+## Customer Status Emails (template-driven, email only)
+
+On every status change, `sendStatusCustomerEmails()` in `src/lib/customer-messages.ts` (fire-and-forget from the status route) emails customers — **no LINE**, distinct from the internal `notifications.ts` system.
+
+- **Templates:** `message_templates` table, **one active row per `delivery_status`**, managed at `/admin/message-templates` (admin only; `GET` + `PUT` upsert at `/api/message-templates`). Body/subject support `{{customer_name}}`, `{{driver_name}}`, `{{driver_phone}}`, `{{destination}}`, `{{delivery_ref}}`, `{{planned_date}}` placeholders.
+- **Recipients:** every customer on the card with a non-empty `customer_email` **and** `receive_auto_emails = true`. Both conditions required.
+- **Customer email source:** `delivery_customers.customer_email` (+ `customer_directory_id` link). Captured when picking from the directory (`CustomerPicker.onSelectEntry`), editable in `CreateCardModal`, `AddCustomerForm`, `CustomerSection`, and the `/admin/customers` directory page.
+- **Sending:** Resend REST API via `RESEND_API_KEY` + `RESEND_FROM_EMAIL` (recipient is the customer's email; `NOTIFICATION_EMAIL` is NOT used here). Each attempt logged to `communication_events` with `triggered_by='auto_status:<status>'`. Never throws — missing config / bad address logs `skipped`/`failed`.
+
+## Realtime
+
+Supabase Realtime is enabled on `delivery_cards` and `delivery_customers` (publication `supabase_realtime`).
+
+- **Client board / planning queue** subscribe directly and refetch on change.
+- **Server-rendered pages** (e.g. dashboard) embed `<RealtimeRefresh />` (`src/components/RealtimeRefresh.tsx`), which calls `router.refresh()` on any change — no need to convert them to client components.
+
 ## UI Patterns
 
 **Toasts:** `useToastStore` from `src/store/toastStore.ts` — call `addToast(message, type)`. Auto-dismiss in 4s.
@@ -203,16 +236,18 @@ Files are uploaded to Supabase Storage bucket `delivery-attachments`. Path forma
 | `courier_companies` | Courier/post company roster |
 | `cargo_companies` | Air cargo company roster |
 | `line_groups` | LINE groups with `line_target_id` and auto-trigger config |
-| `delivery_cards` | Main delivery records with status, method, and logistics fields |
-| `delivery_customers` | Customers on each delivery (1:many per card) |
+| `delivery_cards` | Main delivery records — status, `delivery_method`, `delivery_type`, `sort_order`, logistics fields. `status='draft'` rows are the Planning Queue. |
+| `delivery_customers` | Customers on each delivery (1:many per card). Includes `customer_directory_id` (FK), `customer_email`, `receive_auto_emails`. |
+| `customer_directory` | Reusable customer records (name, `email`, contact, address). |
 | `customer_sale_orders` | SO numbers per customer |
 | `extra_delivery_items` | Non-SO items per customer |
+| `message_templates` | One customer-email template per `delivery_status` (admin-managed) |
 | `attachments` | Files uploaded to Supabase Storage |
 | `comments` | Comment threads per card |
 | `activity_log` | Immutable audit log per card |
-| `notification_events` | Log of all system notification attempts |
-| `communication_events` | Log of manual LINE/email sends from the card detail panel |
-| `planning_queue` | Holding area for unloaded/deferred customers |
+| `notification_events` | Log of all internal system notification attempts |
+| `communication_events` | Log of manual + automatic customer email/LINE sends |
+| `planning_queue` | **Legacy/unused** — superseded by draft `delivery_cards` |
 
 ## Environment Variables
 
@@ -295,9 +330,9 @@ Two-pass: read `sale.order.line` fields, then batch read `product.product` for u
 
 ## Deployment
 
-`vercel.json` sets region to `sin1` (Singapore).
-Run `vercel --prod` after setting all env vars in Vercel dashboard.
-Add the Vercel URL to Supabase Authentication → URL Configuration.
+`vercel.json` sets region to `sin1` (Singapore). The repo (`TKPAPPS/Delivery_Management`) **auto-deploys to Vercel on push to `main`** (Vercel project `delivery-management`, TKPAPPS team). Set env vars in the Vercel dashboard; env var changes need a redeploy to take effect. Add the Vercel URL to Supabase Authentication → URL Configuration.
+
+> The local `.vercel/project.json` is stale (points to a non-existent `delivery-board` project ID). The live project is `delivery-management`.
 
 ## Key Files
 
@@ -305,7 +340,11 @@ Add the Vercel URL to Supabase Authentication → URL Configuration.
 - `src/lib/supabase-server.ts` — server Supabase clients + `getSessionUser()` (server-only)
 - `src/lib/supabase-browser.ts` — browser Supabase client
 - `src/lib/activity.ts` — activity log helper + `ACTIONS` constants
-- `src/lib/notifications.ts` — LINE Messaging API (primary) + Resend email (fallback) for system notifications
+- `src/lib/notifications.ts` — LINE Messaging API (primary) + Resend email (fallback) for INTERNAL system notifications
+- `src/lib/customer-messages.ts` — template-driven CUSTOMER status emails (Resend, email only); called from the status route
+- `src/components/RealtimeRefresh.tsx` — drop-in client component for live refresh of server-rendered pages
+- `src/app/api/message-templates/route.ts` — GET list + PUT upsert (admin) for customer email templates
+- `src/app/(admin)/admin/message-templates/page.tsx` — admin editor for per-status templates
 - `src/lib/parse-body.ts` — safe JSON body parser; use instead of bare `req.json()`
 - `src/lib/utils.ts` — `cn()`, `formatDate/DateTime()`, status/priority label+color helpers
 - `src/types/index.ts` — all TypeScript types (manually maintained, not generated)
