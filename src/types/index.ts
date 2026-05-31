@@ -4,6 +4,7 @@ export type OrderStatus = 'pending' | 'assigned' | 'partial' | 'completed' | 'ca
 export type OrderLineStatus = 'pending' | 'partial' | 'sent';
 export type DeliveryStatus = 'draft' | 'pending_booking' | 'booked' | 'in_transit' | 'delivered';
 export type DeliveryMethod = 'car' | 'post' | 'air' | 'other';
+export type DeliveryType = 'our_motorcycle' | 'company_motorcycle';
 export type DeliveryPriority = 'normal' | 'urgent';
 export type NotificationStatus = 'pending' | 'sent' | 'failed' | 'skipped';
 export type CommChannel = 'line' | 'email';
@@ -100,6 +101,8 @@ export interface DeliveryCard {
   status_changed_at: string;
   priority: DeliveryPriority;
   delivery_method: DeliveryMethod;
+  delivery_type: DeliveryType | null;
+  sort_order: number;
   internal_notes: string | null;
   delivery_notes: string | null;
   // Car
@@ -133,11 +136,25 @@ export interface DeliveryCustomer {
   id: string;
   delivery_card_id: string;
   customer_name: string;
+  customer_directory_id: string | null;
+  customer_email: string | null;
+  receive_auto_emails: boolean;
   delivery_location: string | null;
   notes: string | null;
   partial_shipment: boolean;
   partial_shipment_note: string | null;
   sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MessageTemplate {
+  id: string;
+  status: DeliveryStatus;
+  subject: string;
+  body: string;
+  active: boolean;
+  updated_by: string | null;
   created_at: string;
   updated_at: string;
 }

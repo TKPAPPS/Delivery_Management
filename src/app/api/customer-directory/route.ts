@@ -21,8 +21,8 @@ export async function POST(req: NextRequest) {
 
   const parsed = await parseBody(req);
   if ('error' in parsed) return parsed.error;
-  const { name, contact_number, full_address, default_delivery_location, notes } = parsed.data as {
-    name: string; contact_number?: string; full_address?: string;
+  const { name, email, contact_number, full_address, default_delivery_location, notes } = parsed.data as {
+    name: string; email?: string; contact_number?: string; full_address?: string;
     default_delivery_location?: string; notes?: string;
   };
   if (!name?.trim()) return NextResponse.json({ error: 'Name is required' }, { status: 400 });
@@ -32,6 +32,7 @@ export async function POST(req: NextRequest) {
     .from('customer_directory')
     .insert({
       name: name.trim(),
+      email: email?.trim() || null,
       contact_number: contact_number || null,
       full_address: full_address || null,
       default_delivery_location: default_delivery_location || null,

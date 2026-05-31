@@ -14,17 +14,20 @@ interface CustomerPickerProps {
   deliveryLocation: string;
   onChangeName: (val: string) => void;
   onChangeDeliveryLocation: (val: string) => void;
+  /** Fires with the picked directory entry (or null when manual/cleared) so callers can capture id + email. */
+  onSelectEntry?: (entry: CustomerDirectory | null) => void;
   locationPlaceholder?: string;
   directory?: CustomerDirectory[];
 }
 
-const EMPTY_FORM = { name: '', contact_number: '', full_address: '', default_delivery_location: '', notes: '' };
+const EMPTY_FORM = { name: '', email: '', contact_number: '', full_address: '', default_delivery_location: '', notes: '' };
 
 export default function CustomerPicker({
   name,
   deliveryLocation,
   onChangeName,
   onChangeDeliveryLocation,
+  onSelectEntry,
   locationPlaceholder = 'Delivery location',
   directory: propDirectory,
 }: CustomerPickerProps) {
@@ -44,12 +47,14 @@ export default function CustomerPicker({
 
   const handleSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const id = e.target.value;
-    if (!id) { onChangeName(''); onChangeDeliveryLocation(''); return; }
-    if (id === '__manual__') { onChangeName(''); onChangeDeliveryLocation(''); return; }
+    if (!id || id === '__manual__') {
+      onChangeName(''); onChangeDeliveryLocation(''); onSelectEntry?.(null); return;
+    }
     const found = directory.find((c) => c.id === id);
     if (found) {
       onChangeName(found.name);
       onChangeDeliveryLocation(found.default_delivery_location ?? '');
+      onSelectEntry?.(found);
     }
   };
 
@@ -69,6 +74,7 @@ export default function CustomerPicker({
       setDirectory((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
       onChangeName(created.name);
       onChangeDeliveryLocation(created.default_delivery_location ?? '');
+      onSelectEntry?.(created);
       addToast('Customer saved to directory', 'success');
       setCreateOpen(false);
       setForm(EMPTY_FORM);
@@ -126,6 +132,7 @@ export default function CustomerPicker({
       <Modal open={createOpen} onClose={() => { setCreateOpen(false); setForm(EMPTY_FORM); }} title="New Customer" size="sm">
         <form onSubmit={handleCreate} className="space-y-3">
           <Input label="Name *" value={form.name} onChange={f('name')} placeholder="Customer name" />
+          <Input label="Email" type="email" value={form.email} onChange={f('email')} placeholder="customer@email.com — used for automatic status emails" />
           <Input label="Contact Number" value={form.contact_number} onChange={f('contact_number')} placeholder="+66 XX XXXX XXXX" />
           <Input label="Default Delivery Location" value={form.default_delivery_location} onChange={f('default_delivery_location')} placeholder="e.g. Patong, Phuket" />
           <Textarea label="Full Address" value={form.full_address} onChange={f('full_address')} rows={2} placeholder="Full address..." />

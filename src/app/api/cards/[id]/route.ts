@@ -90,11 +90,22 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   const ctx = await getSessionUser();
-  if (!ctx || ctx.profile.role !== 'admin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const admin = createSupabaseAdminClient();
+
+  // Admins can delete any card. Non-admins may delete only draft cards
+  // (the Planning Queue surface — disposable, not yet in the active pipeline).
+  if (ctx.profile.role !== 'admin') {
+    const { data: target } = await admin
+      .from('delivery_cards')
+      .select('status, is_archived')
+      .eq('id', params.id)
+      .single();
+    if (!target || target.status !== 'draft' || target.is_archived) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+  }
 
   // Collect attachment storage paths before deleting the card
   const { data: attachments } = await admin

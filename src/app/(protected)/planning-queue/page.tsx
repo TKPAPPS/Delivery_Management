@@ -1,35 +1,29 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { PlanningQueueItem, DeliveryStatus } from '@/types';
+import type { DeliveryCardWithCustomers } from '@/types';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
-import Select from '@/components/ui/Select';
 import Input from '@/components/ui/Input';
 import DestinationInput from '@/components/ui/DestinationInput';
+import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { useToastStore } from '@/store/toastStore';
 import { ClipboardList, RefreshCw, Trash2, Plus, ArrowRight, ChevronUp, ChevronDown } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
+import Link from 'next/link';
 
-const STATUS_OPTIONS = [
-  { value: 'draft', label: 'Draft' },
-  { value: 'pending_booking', label: 'Pending Booking' },
-];
-
+/**
+ * Planning Queue is a filtered view of DRAFT delivery cards — the same rows that
+ * appear as "Draft" on the Dashboard and in the board's Draft column. One source of
+ * truth: editing/moving a card anywhere updates it everywhere (kept live via Realtime).
+ */
 export default function PlanningQueuePage() {
   const addToast = useToastStore((s) => s.addToast);
-  const [items, setItems] = useState<PlanningQueueItem[]>([]);
+  const [items, setItems] = useState<DeliveryCardWithCustomers[]>([]);
   const [loading, setLoading] = useState(true);
-  const [removing, setRemoving] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
-  // Create card modal
-  const [createOpen, setCreateOpen] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<PlanningQueueItem | null>(null);
-  const [newDestination, setNewDestination] = useState('');
-  const [newStatus, setNewStatus] = useState<DeliveryStatus>('draft');
-  const [creating, setCreating] = useState(false);
-
-  // Direct add modal
+  // Add-to-queue modal
   const [addOpen, setAddOpen] = useState(false);
   const [addForm, setAddForm] = useState({
     customer_name: '',
@@ -43,9 +37,12 @@ export default function PlanningQueuePage() {
   const fetchItems = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/planning-queue');
+      const res = await fetch('/api/cards?include_customers=true');
       const data = await res.json();
-      setItems(data.items ?? []);
+      const drafts = ((data.cards ?? []) as DeliveryCardWithCustomers[])
+        .filter((c) => c.status === 'draft')
+        .sort((a, b) => (a.sort_order - b.sort_order) || a.created_at.localeCompare(b.created_at));
+      setItems(drafts);
     } catch {
       addToast('Failed to load planning queue', 'error');
     } finally {
@@ -55,17 +52,46 @@ export default function PlanningQueuePage() {
 
   useEffect(() => { fetchItems(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Live sync with board / dashboard / card detail.
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+    const channel = supabase
+      .channel('planning-queue-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_cards' }, fetchItems)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_customers' }, fetchItems)
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleRemove = async (id: string) => {
-    setRemoving(id);
+    setBusyId(id);
     try {
-      const res = await fetch(`/api/planning-queue/${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to remove item');
+      const res = await fetch(`/api/cards/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error();
       setItems((prev) => prev.filter((i) => i.id !== id));
       addToast('Removed from queue', 'success');
     } catch {
       addToast('Failed to remove item', 'error');
     } finally {
-      setRemoving(null);
+      setBusyId(null);
+    }
+  };
+
+  const sendToBoard = async (id: string) => {
+    setBusyId(id);
+    try {
+      const res = await fetch(`/api/cards/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'pending_booking' }),
+      });
+      if (!res.ok) throw new Error();
+      setItems((prev) => prev.filter((i) => i.id !== id));
+      addToast('Moved to board (Pending Booking)', 'success');
+    } catch {
+      addToast('Failed to move card', 'error');
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -75,10 +101,9 @@ export default function PlanningQueuePage() {
     const newItems = [...items];
     [newItems[index], newItems[swapIndex]] = [newItems[swapIndex], newItems[index]];
     setItems(newItems);
-    // Persist all sort_orders to match current array positions
     await Promise.all(
       newItems.map((item, i) =>
-        fetch(`/api/planning-queue/${item.id}`, {
+        fetch(`/api/cards/${item.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sort_order: i }),
@@ -87,74 +112,33 @@ export default function PlanningQueuePage() {
     );
   };
 
-  const openCreateCard = (item: PlanningQueueItem) => {
-    setSelectedItem(item);
-    setNewDestination(item.destination ?? '');
-    setNewStatus('draft');
-    setCreateOpen(true);
-  };
-
-  const handleCreateCard = async () => {
-    if (!selectedItem || !newDestination.trim()) return;
-    setCreating(true);
-    try {
-      const cardRes = await fetch('/api/cards', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          destination: newDestination.trim(),
-          status: newStatus,
-          customers: [{
-            customer_name: selectedItem.customer_name,
-            delivery_location: selectedItem.delivery_location ?? '',
-            notes: selectedItem.notes ?? '',
-            sale_orders: selectedItem.sale_order_refs ?? [],
-            extra_items: (selectedItem.extra_items ?? []).map((ei) => ({
-              item_name: ei.item_name,
-              quantity: ei.quantity ?? '',
-            })),
-          }],
-        }),
-      });
-      if (!cardRes.ok) throw new Error('Failed to create card');
-      await fetch(`/api/planning-queue/${selectedItem.id}`, { method: 'DELETE' });
-      setItems((prev) => prev.filter((i) => i.id !== selectedItem.id));
-      addToast('Delivery card created', 'success');
-      setCreateOpen(false);
-      setSelectedItem(null);
-    } catch {
-      addToast('Failed to create card', 'error');
-    } finally {
-      setCreating(false);
-    }
-  };
-
   const handleDirectAdd = async () => {
     if (!addForm.customer_name.trim()) return;
     setAdding(true);
     try {
-      const sale_order_refs = addForm.sale_orders_text
+      const sale_orders = addForm.sale_orders_text
         .split('\n')
         .map((s) => s.trim())
         .filter(Boolean);
-      const res = await fetch('/api/planning-queue', {
+      const res = await fetch('/api/cards', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          customer_name: addForm.customer_name.trim(),
-          destination: addForm.destination.trim() || null,
-          delivery_location: addForm.delivery_location.trim() || null,
-          sale_order_refs,
-          extra_items: [],
-          notes: addForm.notes.trim() || null,
+          destination: addForm.destination.trim() || 'Unassigned',
+          status: 'draft',
+          customers: [{
+            customer_name: addForm.customer_name.trim(),
+            delivery_location: addForm.delivery_location.trim() || null,
+            notes: addForm.notes.trim() || null,
+            sale_orders,
+          }],
         }),
       });
-      if (!res.ok) throw new Error('Failed to add to queue');
-      const data = await res.json();
-      setItems((prev) => [data.item, ...prev]);
+      if (!res.ok) throw new Error();
       addToast('Added to queue', 'success');
       setAddOpen(false);
       setAddForm({ customer_name: '', destination: '', delivery_location: '', sale_orders_text: '', notes: '' });
+      fetchItems();
     } catch {
       addToast('Failed to add to queue', 'error');
     } finally {
@@ -169,7 +153,7 @@ export default function PlanningQueuePage() {
           <ClipboardList className="w-5 h-5 text-slate-700" />
           <div>
             <h1 className="text-xl font-bold text-black">Planning Queue</h1>
-            <p className="text-xs text-slate-500 mt-0.5">Customers awaiting assignment to a delivery card</p>
+            <p className="text-xs text-slate-500 mt-0.5">Draft deliveries awaiting booking — synced with the Dashboard &amp; Board</p>
           </div>
         </div>
         <div className="flex gap-2">
@@ -192,131 +176,58 @@ export default function PlanningQueuePage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {items.map((item, index) => (
-            <div key={item.id} className="bg-white border border-slate-200 rounded-xl p-4">
-              <div className="flex items-start justify-between gap-4">
-                {/* Reorder buttons */}
-                <div className="flex flex-col gap-0.5 flex-shrink-0 pt-0.5">
-                  <button
-                    onClick={() => moveItem(index, 'up')}
-                    disabled={index === 0}
-                    className="p-0.5 text-slate-300 hover:text-slate-600 disabled:opacity-0"
-                  >
-                    <ChevronUp className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => moveItem(index, 'down')}
-                    disabled={index === items.length - 1}
-                    className="p-0.5 text-slate-300 hover:text-slate-600 disabled:opacity-0"
-                  >
-                    <ChevronDown className="w-4 h-4" />
-                  </button>
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <p className="font-semibold text-slate-900">{item.customer_name}</p>
-                    {item.reason && (
-                      <span className="text-xs bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full">
-                        {item.reason}
-                      </span>
-                    )}
+          {items.map((item, index) => {
+            const customerNames = item.customers.map((c) => c.customer_name);
+            const sos = item.customers.flatMap((c) => c.sale_orders.map((so) => so.sale_order_number));
+            return (
+              <div key={item.id} className="bg-white border border-slate-200 rounded-xl p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex flex-col gap-0.5 flex-shrink-0 pt-0.5">
+                    <button onClick={() => moveItem(index, 'up')} disabled={index === 0} className="p-0.5 text-slate-300 hover:text-slate-600 disabled:opacity-0">
+                      <ChevronUp className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => moveItem(index, 'down')} disabled={index === items.length - 1} className="p-0.5 text-slate-300 hover:text-slate-600 disabled:opacity-0">
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
                   </div>
 
-                  {item.destination && (
-                    <p className="text-sm text-slate-600 mb-1">
-                      <span className="font-medium">Destination:</span> {item.destination}
-                      {item.delivery_location && ` — ${item.delivery_location}`}
-                    </p>
-                  )}
-
-                  {item.sale_order_refs && item.sale_order_refs.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mb-1">
-                      {item.sale_order_refs.map((so, i) => (
-                        <span key={i} className="text-xs font-mono bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">
-                          {so}
-                        </span>
-                      ))}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <Link href={`/cards/${item.id}`} className="font-semibold text-slate-900 hover:text-crimson-700 truncate">
+                        {customerNames.length > 0 ? customerNames.join(', ') : item.destination}
+                      </Link>
+                      <span className="text-xs font-mono text-crimson-700">{item.delivery_ref}</span>
                     </div>
-                  )}
+                    {item.destination && item.destination !== 'Unassigned' && (
+                      <p className="text-sm text-slate-600 mb-1"><span className="font-medium">Destination:</span> {item.destination}</p>
+                    )}
+                    {sos.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-1">
+                        {sos.map((so, i) => (
+                          <span key={i} className="text-xs font-mono bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">{so}</span>
+                        ))}
+                      </div>
+                    )}
+                    {item.internal_notes && <p className="text-xs text-slate-500 italic">{item.internal_notes}</p>}
+                    <p className="text-xs text-slate-400 mt-2">Added {formatDate(item.created_at)}</p>
+                  </div>
 
-                  {item.extra_items && item.extra_items.length > 0 && (
-                    <p className="text-xs text-slate-500 mb-1">
-                      +{item.extra_items.length} extra item{item.extra_items.length > 1 ? 's' : ''}
-                    </p>
-                  )}
-
-                  {item.notes && (
-                    <p className="text-xs text-slate-500 italic">{item.notes}</p>
-                  )}
-
-                  <p className="text-xs text-slate-400 mt-2">Added {formatDate(item.created_at)}</p>
-                </div>
-
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => openCreateCard(item)}
-                    className="text-crimson-700 border-crimson-200 hover:bg-crimson-50"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> New Card
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => handleRemove(item.id)}
-                    loading={removing === item.id}
-                    className="text-red-500 hover:bg-red-50"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <Button size="sm" variant="outline" onClick={() => sendToBoard(item.id)} loading={busyId === item.id}>
+                      <ArrowRight className="w-3.5 h-3.5" /> To Board
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => handleRemove(item.id)} loading={busyId === item.id} className="text-red-500 hover:bg-red-50">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
-      {/* Create Card Modal */}
-      <Modal
-        open={createOpen}
-        onClose={() => { setCreateOpen(false); setSelectedItem(null); }}
-        title="Create Delivery Card"
-        size="sm"
-      >
-        {selectedItem && (
-          <>
-            <p className="text-sm text-slate-600 mb-4">
-              Creating a new card for <span className="font-semibold">{selectedItem.customer_name}</span>.
-            </p>
-            <div className="space-y-3">
-              <DestinationInput
-                label="Destination *"
-                value={newDestination}
-                onChange={(v) => setNewDestination(v)}
-                required
-              />
-              <Select
-                label="Initial Status"
-                value={newStatus}
-                onChange={(e) => setNewStatus(e.target.value as DeliveryStatus)}
-                options={STATUS_OPTIONS}
-              />
-            </div>
-            <div className="flex gap-3 justify-end mt-4">
-              <Button variant="secondary" onClick={() => setCreateOpen(false)} disabled={creating}>
-                Cancel
-              </Button>
-              <Button onClick={handleCreateCard} loading={creating} disabled={!newDestination.trim()}>
-                <ArrowRight className="w-4 h-4" /> Create Card
-              </Button>
-            </div>
-          </>
-        )}
-      </Modal>
-
-      {/* Direct Add Modal */}
+      {/* Add to Queue Modal */}
       <Modal
         open={addOpen}
         onClose={() => { setAddOpen(false); setAddForm({ customer_name: '', destination: '', delivery_location: '', sale_orders_text: '', notes: '' }); }}
@@ -330,11 +241,10 @@ export default function PlanningQueuePage() {
             onChange={(e) => setAddForm((f) => ({ ...f, customer_name: e.target.value }))}
             placeholder="Customer name"
           />
-          <Input
-            label="Destination (hint)"
+          <DestinationInput
+            label="Destination"
             value={addForm.destination}
-            onChange={(e) => setAddForm((f) => ({ ...f, destination: e.target.value }))}
-            placeholder="e.g. Bangrak warehouse"
+            onChange={(v) => setAddForm((f) => ({ ...f, destination: v }))}
           />
           <Input
             label="Delivery Location"
@@ -360,9 +270,7 @@ export default function PlanningQueuePage() {
           />
         </div>
         <div className="flex gap-3 justify-end mt-4">
-          <Button variant="secondary" onClick={() => setAddOpen(false)} disabled={adding}>
-            Cancel
-          </Button>
+          <Button variant="secondary" onClick={() => setAddOpen(false)} disabled={adding}>Cancel</Button>
           <Button onClick={handleDirectAdd} loading={adding} disabled={!addForm.customer_name.trim()}>
             <Plus className="w-4 h-4" /> Add to Queue
           </Button>

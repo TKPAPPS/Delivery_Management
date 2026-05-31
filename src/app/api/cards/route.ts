@@ -92,12 +92,15 @@ export async function POST(req: NextRequest) {
   const parsed = await parseBody(req);
   if ('error' in parsed) return parsed.error;
   const body = parsed.data as Record<string, unknown>;
-  const { destination, status, planned_date, priority, internal_notes, customers } = body as {
+  const { destination, status, planned_date, priority, internal_notes, delivery_method, delivery_type, customers } = body as {
     destination: string; status?: string; planned_date?: string; priority?: string;
-    internal_notes?: string; customers?: Array<{ customer_name?: string; [key: string]: unknown }>;
+    internal_notes?: string; delivery_method?: string; delivery_type?: string;
+    customers?: Array<{ customer_name?: string; [key: string]: unknown }>;
   };
 
   if (!destination) return NextResponse.json({ error: 'Destination is required' }, { status: 400 });
+
+  const validDeliveryType = delivery_type === 'our_motorcycle' || delivery_type === 'company_motorcycle' ? delivery_type : null;
 
   const admin = createSupabaseAdminClient();
 
@@ -109,6 +112,8 @@ export async function POST(req: NextRequest) {
       planned_date: planned_date || null,
       priority: priority ?? 'normal',
       internal_notes: internal_notes || null,
+      delivery_method: delivery_method || 'car',
+      delivery_type: validDeliveryType,
       created_by: user.id,
     })
     .select()
@@ -125,6 +130,9 @@ export async function POST(req: NextRequest) {
         .insert({
           delivery_card_id: card.id,
           customer_name: c.customer_name,
+          customer_directory_id: (c.customer_directory_id as string | null) || null,
+          customer_email: (c.customer_email as string | undefined)?.trim() || null,
+          receive_auto_emails: c.receive_auto_emails !== false,
           delivery_location: c.delivery_location || null,
           notes: c.notes || null,
           sort_order: i,

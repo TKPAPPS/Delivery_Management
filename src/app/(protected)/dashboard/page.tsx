@@ -4,6 +4,7 @@ import UpcomingDeliveries from '@/components/dashboard/UpcomingDeliveries';
 import RecentCards from '@/components/dashboard/RecentCards';
 import { LayoutDashboard, Truck, CheckSquare, AlertTriangle, Clock, CheckCircle2 } from 'lucide-react';
 import NewCardButton from '@/components/dashboard/NewCardButton';
+import RealtimeRefresh from '@/components/RealtimeRefresh';
 import type { DeliveryCard } from '@/types';
 
 export const dynamic = 'force-dynamic';
@@ -14,7 +15,7 @@ export default async function DashboardPage() {
   // Counts by status
   const { data: cards } = await supabase
     .from('delivery_cards')
-    .select('id, status, priority, planned_date, destination, delivery_ref, updated_at, status_changed_at, is_archived')
+    .select('id, status, priority, planned_date, destination, delivery_ref, updated_at, created_at, status_changed_at, sort_order, is_archived')
     .eq('is_archived', false)
     .order('updated_at', { ascending: false });
 
@@ -47,6 +48,12 @@ export default async function DashboardPage() {
 
   const recent = allCards.slice(0, 5);
 
+  // Draft = Planning Queue (same delivery_cards rows). Shown here so queue items
+  // also surface on the dashboard, fully in sync with /planning-queue and the board.
+  const draftCards = allCards
+    .filter((c) => c.status === 'draft')
+    .sort((a, b) => (a.sort_order - b.sort_order) || a.created_at.localeCompare(b.created_at));
+
   const stuckDriverNeeded = allCards
     .filter((c) => c.status === 'pending_booking')
     .sort((a, b) => a.status_changed_at.localeCompare(b.status_changed_at))
@@ -54,6 +61,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
+      <RealtimeRefresh />
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <LayoutDashboard className="w-5 h-5 text-slate-700" />
@@ -74,6 +82,7 @@ export default async function DashboardPage() {
 
       {/* Main grid */}
       <div className="grid lg:grid-cols-2 gap-6">
+        <RecentCards cards={draftCards} title="Draft / Planning Queue" />
         <UpcomingDeliveries cards={upcoming} />
         <RecentCards cards={recent} title="Recently Updated" />
         {stuckDriverNeeded.length > 0 && (

@@ -25,7 +25,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const parsed = await parseBody(req);
   if ('error' in parsed) return parsed.error;
   const body = parsed.data as Record<string, unknown>;
-  const { customer_name, delivery_location, notes, sale_orders } = body;
+  const { customer_name, customer_directory_id, customer_email, receive_auto_emails, delivery_location, notes, sale_orders } = body;
 
   if (!customer_name) return NextResponse.json({ error: 'Customer name is required' }, { status: 400 });
 
@@ -41,6 +41,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     .insert({
       delivery_card_id: params.id,
       customer_name,
+      customer_directory_id: (customer_directory_id as string | null) || null,
+      customer_email: (customer_email as string | undefined)?.trim() || null,
+      receive_auto_emails: receive_auto_emails !== false,
       delivery_location: delivery_location || null,
       notes: notes || null,
       sort_order: count ?? 0,

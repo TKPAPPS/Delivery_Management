@@ -19,6 +19,9 @@ export default function AddCustomerForm({ cardId, onAdded, onCancel }: AddCustom
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     customer_name: '',
+    customer_directory_id: null as string | null,
+    customer_email: '',
+    receive_auto_emails: true,
     delivery_location: '',
     notes: '',
   });
@@ -63,7 +66,27 @@ export default function AddCustomerForm({ cardId, onAdded, onCancel }: AddCustom
         deliveryLocation={form.delivery_location}
         onChangeName={(v) => setForm((f) => ({ ...f, customer_name: v }))}
         onChangeDeliveryLocation={(v) => setForm((f) => ({ ...f, delivery_location: v }))}
+        onSelectEntry={(entry) => setForm((f) => ({
+          ...f,
+          customer_directory_id: entry?.id ?? null,
+          customer_email: entry?.email ?? '',
+        }))}
       />
+      <Input
+        type="email"
+        placeholder="Customer email (for automatic status emails)"
+        value={form.customer_email}
+        onChange={(e) => setForm((f) => ({ ...f, customer_email: e.target.value }))}
+      />
+      <label className="flex items-center gap-2 text-xs text-slate-600 select-none">
+        <input
+          type="checkbox"
+          checked={form.receive_auto_emails}
+          onChange={(e) => setForm((f) => ({ ...f, receive_auto_emails: e.target.checked }))}
+          className="rounded border-slate-300 text-crimson-600 focus:ring-crimson-500"
+        />
+        Send automatic status emails to this customer
+      </label>
       <Textarea
         placeholder="Notes"
         value={form.notes}

@@ -15,6 +15,9 @@ import { Plus, Trash2 } from 'lucide-react';
 
 interface InlineCustomer {
   customer_name: string;
+  customer_directory_id: string | null;
+  customer_email: string;
+  receive_auto_emails: boolean;
   delivery_location: string;
   sale_orders: string[];
 }
@@ -25,8 +28,8 @@ interface CreateCardModalProps {
   onCreated: () => void;
 }
 
-const EMPTY_FORM = { destination: '', status: 'draft', planned_date: '', priority: 'normal', internal_notes: '', delivery_method: 'car' };
-const EMPTY_CUSTOMER: InlineCustomer = { customer_name: '', delivery_location: '', sale_orders: [''] };
+const EMPTY_FORM = { destination: '', status: 'draft', planned_date: '', priority: 'normal', internal_notes: '', delivery_method: 'car', delivery_type: '' };
+const EMPTY_CUSTOMER: InlineCustomer = { customer_name: '', customer_directory_id: null, customer_email: '', receive_auto_emails: true, delivery_location: '', sale_orders: [''] };
 
 export default function CreateCardModal({ open, onClose, onCreated }: CreateCardModalProps) {
   const addToast = useToastStore((s) => s.addToast);
@@ -46,19 +49,16 @@ export default function CreateCardModal({ open, onClose, onCreated }: CreateCard
   const handleClose = () => { reset(); onClose(); };
 
   const addCustomer = () => {
-    setCustomers((prev) => [
-      ...prev,
-      { customer_name: '', delivery_location: '', sale_orders: [''] },
-    ]);
+    setCustomers((prev) => [...prev, { ...EMPTY_CUSTOMER }]);
   };
 
   const removeCustomer = (i: number) => {
     setCustomers((prev) => prev.filter((_, idx) => idx !== i));
   };
 
-  const updateCustomer = (i: number, field: keyof InlineCustomer, value: string) => {
+  const patchCustomer = (i: number, patch: Partial<InlineCustomer>) => {
     setCustomers((prev) =>
-      prev.map((c, idx) => (idx === i ? { ...c, [field]: value } : c))
+      prev.map((c, idx) => (idx === i ? { ...c, ...patch } : c))
     );
   };
 
@@ -136,6 +136,16 @@ export default function CreateCardModal({ open, onClose, onCreated }: CreateCard
             { value: 'other', label: 'Other' },
           ]}
         />
+        <Select
+          label="Delivery Type"
+          value={form.delivery_type}
+          onChange={(e) => setForm((f) => ({ ...f, delivery_type: e.target.value }))}
+          options={[
+            { value: '', label: '— Not specified —' },
+            { value: 'our_motorcycle', label: 'Our motorcycle' },
+            { value: 'company_motorcycle', label: 'Delivery company motorcycle' },
+          ]}
+        />
         <div className="grid grid-cols-2 gap-4">
           <Select
             label="Status"
@@ -187,10 +197,31 @@ export default function CreateCardModal({ open, onClose, onCreated }: CreateCard
               <CustomerPicker
                 name={cust.customer_name}
                 deliveryLocation={cust.delivery_location}
-                onChangeName={(v) => updateCustomer(ci, 'customer_name', v)}
-                onChangeDeliveryLocation={(v) => updateCustomer(ci, 'delivery_location', v)}
+                onChangeName={(v) => patchCustomer(ci, { customer_name: v })}
+                onChangeDeliveryLocation={(v) => patchCustomer(ci, { delivery_location: v })}
+                onSelectEntry={(entry) =>
+                  patchCustomer(ci, {
+                    customer_directory_id: entry?.id ?? null,
+                    customer_email: entry?.email ?? '',
+                  })
+                }
                 directory={customerDirectory}
               />
+              <Input
+                type="email"
+                placeholder="Customer email (for automatic status emails)"
+                value={cust.customer_email}
+                onChange={(e) => patchCustomer(ci, { customer_email: e.target.value })}
+              />
+              <label className="flex items-center gap-2 text-xs text-slate-600 select-none">
+                <input
+                  type="checkbox"
+                  checked={cust.receive_auto_emails}
+                  onChange={(e) => patchCustomer(ci, { receive_auto_emails: e.target.checked })}
+                  className="rounded border-slate-300 text-crimson-600 focus:ring-crimson-500"
+                />
+                Send automatic status emails to this customer
+              </label>
               <div className="space-y-1">
                 <p className="text-xs text-slate-500">Sale Orders</p>
                 {cust.sale_orders.map((so, si) => (

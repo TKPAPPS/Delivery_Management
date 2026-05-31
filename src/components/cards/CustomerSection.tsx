@@ -40,7 +40,7 @@ export default function CustomerSection({ customers, card, activeCards, onRefres
   const [addingItemFor, setAddingItemFor] = useState<string | null>(null);
   const [newItem, setNewItem] = useState({ item_name: '', quantity: '' });
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editFields, setEditFields] = useState({ customer_name: '', delivery_location: '', notes: '' });
+  const [editFields, setEditFields] = useState({ customer_name: '', customer_email: '', receive_auto_emails: true, delivery_location: '', notes: '' });
   const [savingEdit, setSavingEdit] = useState(false);
 
   const handleDelete = async () => {
@@ -109,6 +109,8 @@ export default function CustomerSection({ customers, card, activeCards, onRefres
   const openEdit = (cust: CustomerWithRelations) => {
     setEditFields({
       customer_name: cust.customer_name,
+      customer_email: cust.customer_email ?? '',
+      receive_auto_emails: cust.receive_auto_emails ?? true,
       delivery_location: cust.delivery_location ?? '',
       notes: cust.notes ?? '',
     });
@@ -124,6 +126,8 @@ export default function CustomerSection({ customers, card, activeCards, onRefres
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           customer_name: editFields.customer_name.trim(),
+          customer_email: editFields.customer_email.trim() || null,
+          receive_auto_emails: editFields.receive_auto_emails,
           delivery_location: editFields.delivery_location.trim() || null,
           notes: editFields.notes.trim() || null,
         }),
@@ -166,6 +170,22 @@ export default function CustomerSection({ customers, card, activeCards, onRefres
                   value={editFields.customer_name}
                   onChange={(e) => setEditFields((f) => ({ ...f, customer_name: e.target.value }))}
                 />
+                <Input
+                  label="Customer Email"
+                  type="email"
+                  value={editFields.customer_email}
+                  onChange={(e) => setEditFields((f) => ({ ...f, customer_email: e.target.value }))}
+                  placeholder="customer@email.com — for automatic status emails"
+                />
+                <label className="flex items-center gap-2 text-xs text-slate-600 select-none">
+                  <input
+                    type="checkbox"
+                    checked={editFields.receive_auto_emails}
+                    onChange={(e) => setEditFields((f) => ({ ...f, receive_auto_emails: e.target.checked }))}
+                    className="rounded border-slate-300 text-crimson-600 focus:ring-crimson-500"
+                  />
+                  Send automatic status emails to this customer
+                </label>
                 <Input
                   label="Delivery Location"
                   value={editFields.delivery_location}

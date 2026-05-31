@@ -1,8 +1,19 @@
-# Delivery Board — Developer Guide
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## What is this app?
 
 An internal logistics delivery coordination tool. Users create delivery cards that track shipments from staging through driver booking to final loading. Cards contain customers (with sale orders), driver assignments, comments, attachments, and a full activity log.
+
+## Commands
+
+```bash
+npm run dev        # Start dev server (Next.js)
+npm run build      # Production build
+npm run lint       # ESLint
+npm run typecheck  # tsc --noEmit (no test suite exists)
+```
 
 ## Stack
 
@@ -14,6 +25,24 @@ An internal logistics delivery coordination tool. Users create delivery cards th
 - **@supabase/ssr** for server/browser Supabase clients
 - **No Resend SDK** — email sent via Resend REST API using native `fetch`
 - **No LINE SDK** — LINE Messaging API called via native `fetch`
+
+## Route Structure
+
+```
+src/app/
+  (protected)/     # Requires auth + active profile; layout wraps AppShell
+    board/         # Kanban board (drag-and-drop)
+    cards/[id]/    # Card detail + print
+    orders/        # Orders pool + detail
+    planning-queue/
+    archive/
+    dashboard/
+  (admin)/         # Requires auth + admin (or logistics for some routes)
+    admin/users, drivers, customers, cargo-companies,
+           courier-companies, communications, odoo-sync, settings
+  api/             # Never redirected by middleware; handles auth internally
+  login/, pending/ # Public
+```
 
 ## Auth Flow
 
@@ -28,14 +57,29 @@ An internal logistics delivery coordination tool. Users create delivery cards th
 
 ## Role System
 
-Roles are stored in `profiles.role` (enum: `admin`, `sales`, `stock_manager`, `logistics`).
+Roles are stored in `profiles.role` (enum: `admin`, `sales`, `stock_manager`, `logistics`, `warehouse`).
 
 - **admin**: full access including user management, can delete cards
 - **sales**: can create and manage delivery cards
 - **stock_manager**: can view and update cards
 - **logistics**: can manage cards + drivers + couriers/cargo-companies (but not users admin panel)
+- **warehouse**: warehouse workflow role (used in order line status updates, Phase 4)
 
 New users are created as `sales` with `active=false`. Admins activate them via `/admin/users`.
+
+Middleware also allows `logistics` role on `/admin/drivers`, `/admin/customers`, `/admin/settings`, `/admin/courier-companies`, `/admin/cargo-companies`.
+
+## Supabase Client Selection
+
+Three clients — use the right one:
+
+| Client | Where to use | How |
+|--------|-------------|-----|
+| `createSupabaseServerClient()` | Server components, API routes (read with RLS) | `src/lib/supabase-server.ts` |
+| `createSupabaseAdminClient()` | API route mutations (bypasses RLS) | `src/lib/supabase-server.ts` — server-only |
+| `createSupabaseBrowserClient()` | Client components | `src/lib/supabase-browser.ts` |
+
+**NEVER** use `createSupabaseAdminClient()` in client components or files bundled client-side.
 
 ## API Route Patterns
 
@@ -50,8 +94,6 @@ const admin = createSupabaseAdminClient();
 ```
 
 `getSessionUser()` in `src/lib/supabase-server.ts` centralizes all auth and active-profile checks. It returns `null` for unauthenticated users AND for users with `active=false`. Every route checks `if (!ctx)` — no per-route active-check is needed.
-
-NEVER use `createSupabaseAdminClient()` in client components or files bundled client-side.
 
 ### Safe JSON body parsing
 
@@ -71,7 +113,21 @@ All mutations should call `logActivity()` from `src/lib/activity.ts`:
 await logActivity(deliveryCardId, userId, ACTIONS.CARD_CREATED, { extra: 'data' });
 ```
 
-Common action constants are exported from `ACTIONS` in `src/lib/activity.ts`.
+Common action constants are exported from `ACTIONS` in `src/lib/activity.ts`. For orders (no card), pass `null` as first arg and add `{ entity_type: 'order', entity_id: order.id }` options.
+
+## TypeScript Types
+
+All app types live in `src/types/index.ts`. The `Database` type is manually maintained (not Supabase-generated) — update it when schema changes. Composite types like `DeliveryCardFull`, `DeliveryCardWithCustomers`, `OrderWithLines`, `OrderListItem` are defined there too.
+
+## UI Patterns
+
+**Toasts:** `useToastStore` from `src/store/toastStore.ts` — call `addToast(message, type)`. Auto-dismiss in 4s.
+
+**Modals:** `src/store/modalStore.ts` for shared modal state.
+
+**Utilities** (`src/lib/utils.ts`): `cn()` (clsx + tailwind-merge), `formatDate()`, `formatDateTime()`, `statusLabel()`, `statusColor()`, `orderPriorityLabel()`, `orderPriorityColor()`, `orderStatusLabel()`, `orderStatusColor()`, `timeAgo()`.
+
+**UI components** (`src/components/ui/`): `Button`, `Input`, `Select`, `Textarea`, `Modal`, `Badge`, `Toast`, `ConfirmDialog`, `DatePicker`, `EmptyState`, `LoadingSpinner`, `DestinationInput`.
 
 ## Notifications (system-triggered)
 
@@ -137,7 +193,6 @@ Files are uploaded to Supabase Storage bucket `delivery-attachments`. Path forma
 - `AttachmentSection` uses `signed_url` for downloads; falls back to `file_url` if absent
 - **Orphan prevention:** DB record deleted first; storage removal is best-effort with error logging
 - **Card delete:** cleans up all attachment storage files before returning success
-- To fully privatize files: change the Supabase Storage bucket policy to private in the dashboard
 
 ## Database Tables
 
@@ -173,20 +228,6 @@ Files are uploaded to Supabase Storage bucket `delivery-attachments`. Path forma
 | `RESEND_FROM_EMAIL` | Verified sender address for emails — **must be a domain verified in Resend** | Optional |
 | `NOTIFICATION_EMAIL` | Recipient for system notification emails | Optional |
 
-## Supabase Storage
-
-Bucket name: `delivery-attachments`
-Upload path: `{card_id}/{timestamp}-{sanitized_filename}`
-Signed URL expiry: 24 hours (generated on read, not stored)
-
-To switch to private storage: change the bucket policy to private in the Supabase dashboard. The code already uses signed URLs for reads and stores only `storage_path` in `file_url`.
-
-## Deployment
-
-`vercel.json` sets region to `sin1` (Singapore).
-Run `vercel --prod` after setting all env vars in Vercel dashboard.
-Add the Vercel URL to Supabase Authentication → URL Configuration.
-
 ## Orders (Phase 2)
 
 The `orders` table is the new order-based workflow alongside the old delivery card system.
@@ -216,17 +257,12 @@ Orders and order lines use `deleted_at timestamptz`. Never set `deleted_at` from
 ```typescript
 await logActivity(null, user.id, ACTIONS.ORDER_CREATED, { order_ref }, { entity_type: 'order', entity_id: order.id });
 ```
-The first param is `null` (no delivery_card_id). Existing card calls pass a string — no change needed.
 
 ### Order API routes
 - `GET/POST /api/orders` — list (with line count enrichment) + create
 - `GET/PATCH/DELETE /api/orders/[id]` — detail + update (whitelisted fields) + soft delete (admin)
 - `GET/POST /api/orders/[id]/lines` — list non-deleted lines + add line
 - `PATCH/DELETE /api/order-lines/[id]` — update line (whitelisted) + soft delete
-
-### Order pages
-- `/orders` — Orders Pool client page with filters (status/priority/source/search)
-- `/orders/[id]` — server page → OrderDetailClient (edit, lines management, activity log)
 
 ## Odoo Sync (Phase 3)
 
@@ -257,17 +293,24 @@ Two-pass: read `sale.order.line` fields, then batch read `product.product` for u
 - `POST /api/sync/odoo` — admin only; optional body `{ since?: string }`; 409 if already running; 503 if unconfigured
 - `GET /api/sync/odoo/logs` — admin only; last 20 `odoo_sync_logs` rows
 
-### Admin page
-`/admin/odoo-sync` — admin only (logistics redirected to dashboard). Shows config status, sync trigger, result summary, log history with expandable error details.
+## Deployment
+
+`vercel.json` sets region to `sin1` (Singapore).
+Run `vercel --prod` after setting all env vars in Vercel dashboard.
+Add the Vercel URL to Supabase Authentication → URL Configuration.
 
 ## Key Files
 
 - `src/middleware.ts` — auth guard for all routes; early-returns for `/api/*` routes to prevent redirect swallowing
 - `src/lib/supabase-server.ts` — server Supabase clients + `getSessionUser()` (server-only)
 - `src/lib/supabase-browser.ts` — browser Supabase client
-- `src/lib/activity.ts` — activity log helper
+- `src/lib/activity.ts` — activity log helper + `ACTIONS` constants
 - `src/lib/notifications.ts` — LINE Messaging API (primary) + Resend email (fallback) for system notifications
 - `src/lib/parse-body.ts` — safe JSON body parser; use instead of bare `req.json()`
+- `src/lib/utils.ts` — `cn()`, `formatDate/DateTime()`, status/priority label+color helpers
+- `src/types/index.ts` — all TypeScript types (manually maintained, not generated)
+- `src/store/toastStore.ts` — Zustand toast state
+- `src/store/modalStore.ts` — Zustand modal state
 - `src/app/(protected)/board/BoardClient.tsx` — drag-and-drop Kanban
 - `src/app/(protected)/cards/[id]/CardDetailClient.tsx` — card detail page
 - `src/components/cards/LogisticsSection.tsx` — delivery method selector + per-method sub-form

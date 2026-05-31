@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser, createSupabaseAdminClient } from '@/lib/supabase-server';
 import { logActivity, ACTIONS } from '@/lib/activity';
 import { sendNotification, type NotificationType } from '@/lib/notifications';
+import { sendStatusCustomerEmails } from '@/lib/customer-messages';
 import { parseBody } from '@/lib/parse-body';
 import type { DeliveryStatus } from '@/types';
 
@@ -61,6 +62,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       plannedDate: existing.planned_date ?? undefined,
     });
   }
+
+  // Customer-facing status emails (templates + per-customer opt-in). Fire-and-forget.
+  void sendStatusCustomerEmails(params.id, status);
 
   return NextResponse.json({ card });
 }

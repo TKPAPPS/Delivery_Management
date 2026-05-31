@@ -59,31 +59,39 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       return NextResponse.json({ success: true, newCardId: newCard.id });
     }
 
-    await admin.from('planning_queue').insert({
-      customer_name: customer.customer_name,
-      delivery_location: customer.delivery_location,
-      sale_order_refs: (customer.sale_orders as Array<{ sale_order_number: string }>).map((so) => so.sale_order_number),
-      extra_items: (customer.extra_items as Array<{ item_name: string; quantity: string | null }>).map((i) => ({
-        item_name: i.item_name,
-        quantity: i.quantity,
-      })),
-      notes: notes || customer.notes,
-      reason: reason ?? null,
-      created_by: user.id,
-    });
+    // Planning Queue is unified with draft cards: unloading a customer now spins off
+    // a fresh DRAFT card and moves the customer (and its sale orders / extra items,
+    // which follow via FK) onto it. The draft card shows up in Planning Queue + Dashboard Draft.
+    const { data: queueCard, error: queueErr } = await admin
+      .from('delivery_cards')
+      .insert({
+        destination: customer.delivery_location || 'Unassigned',
+        status: 'draft',
+        priority: 'normal',
+        internal_notes: reason ? `Unloaded: ${reason}` : null,
+        created_by: user.id,
+      })
+      .select()
+      .single();
 
-    await admin.from('delivery_customers').delete().eq('id', params.id);
+    if (queueErr || !queueCard) return NextResponse.json({ error: 'Failed to unload customer' }, { status: 500 });
+
+    await admin
+      .from('delivery_customers')
+      .update({ delivery_card_id: queueCard.id, notes: notes || customer.notes })
+      .eq('id', params.id);
 
     await logActivity(customer.delivery_card_id, user.id, ACTIONS.CUSTOMER_UNLOADED, {
       customer_name: customer.customer_name,
       reason,
+      new_card_id: queueCard.id,
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, newCardId: queueCard.id });
   }
 
   const updateData: Record<string, unknown> = {};
-  const allowedFields = ['customer_name', 'delivery_location', 'notes', 'partial_shipment', 'partial_shipment_note', 'sort_order'];
+  const allowedFields = ['customer_name', 'customer_directory_id', 'customer_email', 'receive_auto_emails', 'delivery_location', 'notes', 'partial_shipment', 'partial_shipment_note', 'sort_order'];
   for (const field of allowedFields) {
     if (body[field] !== undefined) updateData[field] = body[field];
   }

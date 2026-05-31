@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import type { DeliveryCard, Driver, CourierCompany, CargoCompany, DeliveryMethod } from '@/types';
+import type { DeliveryCard, Driver, CourierCompany, CargoCompany, DeliveryMethod, DeliveryType } from '@/types';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
@@ -28,6 +28,11 @@ const METHOD_ICONS: Record<DeliveryMethod, React.ElementType> = {
   other: Package,
 };
 
+const DELIVERY_TYPE_LABELS: Record<DeliveryType, string> = {
+  our_motorcycle: 'Our motorcycle',
+  company_motorcycle: 'Delivery company motorcycle',
+};
+
 export default function LogisticsSection({ card, drivers, onUpdated }: LogisticsSectionProps) {
   const addToast = useToastStore((s) => s.addToast);
   const [editing, setEditing] = useState(false);
@@ -37,6 +42,7 @@ export default function LogisticsSection({ card, drivers, onUpdated }: Logistics
 
   const [form, setForm] = useState<FormState>({
     delivery_method: card.delivery_method ?? 'car',
+    delivery_type: card.delivery_type ?? '',
     // Car
     driver_id: card.driver_id ?? '',
     driver_name_manual: card.driver_name_manual ?? '',
@@ -65,6 +71,7 @@ export default function LogisticsSection({ card, drivers, onUpdated }: Logistics
 
   const resetForm = () => setForm({
     delivery_method: card.delivery_method ?? 'car',
+    delivery_type: card.delivery_type ?? '',
     driver_id: card.driver_id ?? '',
     driver_name_manual: card.driver_name_manual ?? '',
     driver_phone_manual: card.driver_phone_manual ?? '',
@@ -87,6 +94,7 @@ export default function LogisticsSection({ card, drivers, onUpdated }: Logistics
     try {
       const payload: Partial<DeliveryCard> = {
         delivery_method: form.delivery_method as DeliveryMethod,
+        delivery_type: (form.delivery_type || null) as DeliveryType | null,
         driver_id: form.driver_id || null,
         driver_name_manual: form.driver_name_manual || null,
         driver_phone_manual: form.driver_phone_manual || null,
@@ -137,6 +145,11 @@ export default function LogisticsSection({ card, drivers, onUpdated }: Logistics
           <MethodIcon className="w-4 h-4 text-slate-500" />
           <h3 className="font-semibold text-slate-900 text-sm">
             Logistics — <span className="text-slate-500 font-normal">{METHOD_LABELS[method]}</span>
+            {card.delivery_type && (
+              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-gold-50 text-gold-700 border border-gold-200">
+                {DELIVERY_TYPE_LABELS[card.delivery_type]}
+              </span>
+            )}
           </h3>
         </div>
         {!editing ? (
@@ -243,7 +256,7 @@ function ReadView({ card, drivers, method, hasDetails, onEdit }: {
 }
 
 type FormState = {
-  delivery_method: string; driver_id: string; driver_name_manual: string;
+  delivery_method: string; delivery_type: string; driver_id: string; driver_name_manual: string;
   driver_phone_manual: string; vehicle_type_manual: string; license_plate_manual: string;
   courier_name: string; tracking_number: string; cargo_company_name: string;
   mawb: string; hawb: string; flight_number: string; etd: string; eta: string;
@@ -273,6 +286,17 @@ function EditForm({ form, setForm, drivers, courierCompanies, cargoCompanies }: 
           { value: 'post', label: 'Post / Courier' },
           { value: 'air', label: 'Air Freight' },
           { value: 'other', label: 'Other' },
+        ]}
+      />
+
+      <Select
+        label="Delivery Type"
+        value={form.delivery_type}
+        onChange={f('delivery_type')}
+        options={[
+          { value: '', label: '— Not specified —' },
+          { value: 'our_motorcycle', label: 'Our motorcycle' },
+          { value: 'company_motorcycle', label: 'Delivery company motorcycle' },
         ]}
       />
 
