@@ -18,6 +18,7 @@ import {
   X,
   Pencil,
   Check,
+  MailX,
 } from 'lucide-react';
 import Input from '@/components/ui/Input';
 
@@ -216,6 +217,14 @@ export default function CustomerSection({ customers, card, activeCards, onRefres
                   <span className="font-medium text-sm text-slate-900 truncate">{cust.customer_name}</span>
                   {cust.partial_shipment && (
                     <Badge variant="warning">Partial</Badge>
+                  )}
+                  {!cust.customer_email && (
+                    <span
+                      title="No email on file — this customer won't receive automatic status updates. Add one via Edit."
+                      className="inline-flex items-center gap-1 text-xs text-slate-400 flex-shrink-0"
+                    >
+                      <MailX className="w-3.5 h-3.5" /> no email
+                    </span>
                   )}
                   {cust.sale_orders.length > 0 && (
                     <span className="text-xs text-slate-400">

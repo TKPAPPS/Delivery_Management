@@ -37,21 +37,29 @@ export default function DeliveryCardPreview({ card, dragging }: DeliveryCardPrev
       : 0;
   const isStuck = daysWaiting >= 2;
 
+  const accentTitle = card.priority === 'urgent'
+    ? 'Urgent priority'
+    : isStuck
+      ? `Waiting ${daysWaiting} days for booking`
+      : undefined;
+
   return (
     <Link href={`/cards/${card.id}`}>
       <div
+        title={accentTitle}
         className={cn(
-          'bg-white rounded-lg border border-slate-200 p-3 cursor-pointer hover:border-crimson-300 transition-all',
+          // Reserve a 4px left accent on every card so they align; colour it only when meaningful.
+          'bg-white rounded-lg border border-slate-200 border-l-4 border-l-transparent p-3 cursor-pointer hover:border-crimson-300 transition-all',
           dragging && 'shadow-lg rotate-1 border-crimson-400',
-          card.priority === 'urgent' && 'border-l-4 border-l-crimson-700',
-          isStuck && card.priority !== 'urgent' && 'border-l-4 border-l-amber-400'
+          card.priority === 'urgent' && 'border-l-crimson-700',
+          isStuck && card.priority !== 'urgent' && 'border-l-amber-400'
         )}
       >
         {/* Top row */}
         <div className="flex items-start justify-between gap-2 mb-2">
           <span className="font-mono text-xs text-crimson-700">{card.delivery_ref}</span>
           {card.priority === 'urgent' && (
-            <span className="inline-flex items-center gap-1 bg-crimson-100 text-crimson-700 text-xs px-1.5 py-0.5 rounded-full font-medium flex-shrink-0">
+            <span title="Urgent priority" className="inline-flex items-center gap-1 bg-crimson-100 text-crimson-700 text-xs px-1.5 py-0.5 rounded-full font-medium flex-shrink-0">
               <AlertTriangle className="w-3 h-3" />
               Urgent
             </span>
@@ -102,7 +110,7 @@ export default function DeliveryCardPreview({ card, dragging }: DeliveryCardPrev
 
         {/* Logistics line */}
         {logisticsLine && (
-          <div className="flex items-center gap-1 text-xs text-gold-700 mb-2">
+          <div title={`Delivery method: ${method}`} className="flex items-center gap-1 text-xs text-gold-700 mb-2">
             <MethodIcon className="w-3 h-3 flex-shrink-0" />
             <span className="truncate">{logisticsLine}</span>
           </div>
@@ -112,25 +120,25 @@ export default function DeliveryCardPreview({ card, dragging }: DeliveryCardPrev
         <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
           <div className="flex items-center gap-3">
             {(card._count?.comments ?? 0) > 0 && (
-              <span className="flex items-center gap-1 text-xs text-slate-400">
+              <span title={`${card._count?.comments} comment${card._count?.comments === 1 ? '' : 's'}`} className="flex items-center gap-1 text-xs text-slate-400">
                 <MessageSquare className="w-3 h-3" />
                 {card._count?.comments}
               </span>
             )}
             {(card._count?.attachments ?? 0) > 0 && (
-              <span className="flex items-center gap-1 text-xs text-slate-400">
+              <span title={`${card._count?.attachments} attachment${card._count?.attachments === 1 ? '' : 's'}`} className="flex items-center gap-1 text-xs text-slate-400">
                 <Paperclip className="w-3 h-3" />
                 {card._count?.attachments}
               </span>
             )}
             {hasPartial && (
-              <span className="flex items-center gap-1 text-xs text-amber-600">
+              <span title="One or more customers have a partial shipment" className="flex items-center gap-1 text-xs text-amber-600">
                 <PackageOpen className="w-3 h-3" />
                 Partial
               </span>
             )}
             {isStuck && (
-              <span className="flex items-center gap-1 text-xs text-amber-600 font-medium">
+              <span title={`Waiting ${daysWaiting} days for booking`} className="flex items-center gap-1 text-xs text-amber-600 font-medium">
                 <Clock className="w-3 h-3" />
                 {daysWaiting}d waiting
               </span>

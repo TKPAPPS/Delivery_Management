@@ -80,6 +80,16 @@ export default function MessageTemplatesPage() {
         emails enabled is sent the matching template below. Email only.
       </p>
 
+      <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 text-xs text-amber-800">
+        <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
+        <p>
+          A template only sends to a customer who has an <strong>email address</strong> and the
+          &ldquo;Send automatic status emails&rdquo; toggle on (set per customer on the delivery card,
+          or add emails in <a href="/admin/customers" className="underline font-medium">Customer Directory</a>).
+          Customers without an email are skipped.
+        </p>
+      </div>
+
       <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-lg p-3 mb-6 text-xs text-blue-800">
         <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
         <div>
