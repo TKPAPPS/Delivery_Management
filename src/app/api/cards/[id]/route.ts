@@ -60,8 +60,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     'destination', 'planned_date', 'priority', 'internal_notes', 'delivery_notes',
     'delivery_method', 'delivery_type', 'sort_order', 'is_archived', 'archived_at',
     'driver_id', 'driver_name_manual', 'driver_phone_manual', 'vehicle_type_manual', 'license_plate_manual',
-    'courier_name', 'tracking_number', 'cargo_company_name', 'mawb', 'hawb', 'flight_number', 'etd', 'eta',
-    'other_method_name', 'other_reference',
+    'courier_company_id', 'courier_company_name', 'tracking_number',
+    'cargo_company_id', 'cargo_company_name', 'mawb_number', 'hawb_number', 'flight_number', 'cargo_etd', 'cargo_eta',
+    'other_method_name', 'other_tracking_ref',
   ] as const;
   const updateData: Record<string, unknown> = {};
   for (const field of ALLOWED_FIELDS) {

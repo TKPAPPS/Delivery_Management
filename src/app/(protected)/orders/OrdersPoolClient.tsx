@@ -1,10 +1,13 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { Plus, Search, X } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import CreateOrderModal from '@/components/orders/CreateOrderModal';
+import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { useDebouncedCallback } from '@/lib/useDebouncedCallback';
+import { useToastStore } from '@/store/toastStore';
 import { formatDate, orderPriorityLabel, orderPriorityColor, orderStatusLabel, orderStatusColor } from '@/lib/utils';
 import type { OrderListItem } from '@/types';
 
@@ -56,13 +59,30 @@ export default function OrdersPoolClient({ initialOrders, role }: Props) {
   const [sourceFilter, setSourceFilter] = useState('');
 
   const canWrite = ['admin', 'sales'].includes(role);
+  const addToast = useToastStore((s) => s.addToast);
 
-  const fetchOrders = () => {
-    fetch('/api/orders')
-      .then((r) => r.json())
-      .then((d) => setOrders(d.orders ?? []))
-      .catch(() => {});
-  };
+  const fetchOrders = useCallback(async () => {
+    try {
+      const res = await fetch('/api/orders');
+      if (!res.ok) throw new Error('Request failed');
+      const d = await res.json();
+      setOrders(d.orders ?? []);
+    } catch {
+      addToast('Failed to refresh orders', 'error');
+    }
+  }, [addToast]);
+
+  // Live sync: refetch when any order changes. Debounced so a bulk Odoo sync
+  // (hundreds of row events) collapses into a single refetch.
+  const scheduleRefetch = useDebouncedCallback(() => { void fetchOrders(); });
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+    const channel = supabase
+      .channel('orders-pool-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, scheduleRefetch)
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [scheduleRefetch]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();

@@ -4,7 +4,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What is this app?
 
-An internal logistics delivery coordination tool. Users create delivery cards that track shipments from staging through driver booking to final loading. Cards contain customers (with sale orders), driver assignments, comments, attachments, and a full activity log.
+An internal logistics delivery coordination tool for **The Kosher Place (TKP)** in Thailand (Bangkok, Koh Samui, Koh Phangan, Phuket). Users create delivery cards that track shipments from staging through driver booking to final loading. Cards contain customers (with sale orders), driver assignments, comments, attachments, and a full activity log.
+
+## Product Goals
+
+The app exists to turn sales demand into coordinated, tracked deliveries with one consistent picture for the whole team. Concretely:
+
+1. **Single source of truth per delivery** — one `delivery_cards` row; Planning Queue, Dashboard Draft, and the board's Draft column are all views of the same draft rows. No duplicate/unsynced copies.
+2. **Clear lifecycle** — `draft → pending_booking → booked → in_transit → delivered` on a drag-and-drop Kanban board, with an immutable activity log.
+3. **Per-delivery logistics** — multiple customers (each with sale orders + extra items), delivery method (car/post/air/other), delivery type (our motorcycle vs delivery-company motorcycle), driver/courier/cargo assignment, attachments, comments.
+4. **Real-time sync** — status/driver/type/movement changes propagate live across sections via Supabase Realtime.
+5. **Automatic customer emails** — admin-authored, status-based email templates auto-sent to opted-in customers (email only, logged, non-blocking).
+6. **Odoo ingestion, read-only** — confirmed Odoo 18 sale orders sync into the Orders Pool. Hard guarantee: no write-back to Odoo (the client rejects all non-read methods).
+7. **Reliability over polish** — audited API routes, graceful degradation (emails/notifications log skipped/failed, never crash a workflow).
+
+> Known architectural gap: the **Orders Pool** (Odoo orders) and the **delivery cards** are currently two parallel systems with **no Order→delivery-card bridge**. Deliveries are created independently of the orders they fulfill.
 
 ## Commands
 

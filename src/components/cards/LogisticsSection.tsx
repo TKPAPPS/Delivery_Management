@@ -33,6 +33,10 @@ const DELIVERY_TYPE_LABELS: Record<DeliveryType, string> = {
   company_motorcycle: 'Delivery company motorcycle',
 };
 
+// Courier/cargo dropdowns use '__manual__' as the "enter manually" sentinel; it must
+// never be saved as the actual company name.
+const cleanName = (v: string): string | null => (!v || v === '__manual__' ? null : v);
+
 export default function LogisticsSection({ card, drivers, onUpdated }: LogisticsSectionProps) {
   const addToast = useToastStore((s) => s.addToast);
   const [editing, setEditing] = useState(false);
@@ -50,18 +54,18 @@ export default function LogisticsSection({ card, drivers, onUpdated }: Logistics
     vehicle_type_manual: card.vehicle_type_manual ?? '',
     license_plate_manual: card.license_plate_manual ?? '',
     // Post
-    courier_name: card.courier_name ?? '',
+    courier_company_name: card.courier_company_name ?? '',
     tracking_number: card.tracking_number ?? '',
     // Air
     cargo_company_name: card.cargo_company_name ?? '',
-    mawb: card.mawb ?? '',
-    hawb: card.hawb ?? '',
+    mawb_number: card.mawb_number ?? '',
+    hawb_number: card.hawb_number ?? '',
     flight_number: card.flight_number ?? '',
-    etd: card.etd ?? '',
-    eta: card.eta ?? '',
+    cargo_etd: card.cargo_etd ?? '',
+    cargo_eta: card.cargo_eta ?? '',
     // Other
     other_method_name: card.other_method_name ?? '',
-    other_reference: card.other_reference ?? '',
+    other_tracking_ref: card.other_tracking_ref ?? '',
   });
 
   useEffect(() => {
@@ -77,16 +81,16 @@ export default function LogisticsSection({ card, drivers, onUpdated }: Logistics
     driver_phone_manual: card.driver_phone_manual ?? '',
     vehicle_type_manual: card.vehicle_type_manual ?? '',
     license_plate_manual: card.license_plate_manual ?? '',
-    courier_name: card.courier_name ?? '',
+    courier_company_name: card.courier_company_name ?? '',
     tracking_number: card.tracking_number ?? '',
     cargo_company_name: card.cargo_company_name ?? '',
-    mawb: card.mawb ?? '',
-    hawb: card.hawb ?? '',
+    mawb_number: card.mawb_number ?? '',
+    hawb_number: card.hawb_number ?? '',
     flight_number: card.flight_number ?? '',
-    etd: card.etd ?? '',
-    eta: card.eta ?? '',
+    cargo_etd: card.cargo_etd ?? '',
+    cargo_eta: card.cargo_eta ?? '',
     other_method_name: card.other_method_name ?? '',
-    other_reference: card.other_reference ?? '',
+    other_tracking_ref: card.other_tracking_ref ?? '',
   });
 
   const save = async () => {
@@ -100,16 +104,17 @@ export default function LogisticsSection({ card, drivers, onUpdated }: Logistics
         driver_phone_manual: form.driver_phone_manual || null,
         vehicle_type_manual: form.vehicle_type_manual || null,
         license_plate_manual: form.license_plate_manual || null,
-        courier_name: form.courier_name || null,
+        // '__manual__' is the dropdown sentinel for "enter manually" — never persist it.
+        courier_company_name: cleanName(form.courier_company_name),
         tracking_number: form.tracking_number || null,
-        cargo_company_name: form.cargo_company_name || null,
-        mawb: form.mawb || null,
-        hawb: form.hawb || null,
+        cargo_company_name: cleanName(form.cargo_company_name),
+        mawb_number: form.mawb_number || null,
+        hawb_number: form.hawb_number || null,
         flight_number: form.flight_number || null,
-        etd: form.etd || null,
-        eta: form.eta || null,
+        cargo_etd: form.cargo_etd || null,
+        cargo_eta: form.cargo_eta || null,
         other_method_name: form.other_method_name || null,
-        other_reference: form.other_reference || null,
+        other_tracking_ref: form.other_tracking_ref || null,
       };
       const res = await fetch(`/api/cards/${card.id}`, {
         method: 'PATCH',
@@ -132,8 +137,8 @@ export default function LogisticsSection({ card, drivers, onUpdated }: Logistics
 
   const hasDetails = (() => {
     if (method === 'car') return !!(card.driver_name_manual || card.driver_id);
-    if (method === 'post') return !!(card.courier_name || card.tracking_number);
-    if (method === 'air') return !!(card.cargo_company_name || card.mawb);
+    if (method === 'post') return !!(card.courier_company_name || card.tracking_number);
+    if (method === 'air') return !!(card.cargo_company_name || card.mawb_number);
     if (method === 'other') return !!(card.other_method_name);
     return false;
   })();
@@ -227,7 +232,7 @@ function ReadView({ card, drivers, method, hasDetails, onEdit }: {
   if (method === 'post') {
     return (
       <div className="space-y-1.5">
-        <Row label="Courier" value={card.courier_name} />
+        <Row label="Courier" value={card.courier_company_name} />
         <Row label="Tracking #" value={card.tracking_number} />
       </div>
     );
@@ -236,11 +241,11 @@ function ReadView({ card, drivers, method, hasDetails, onEdit }: {
     return (
       <div className="space-y-1.5">
         <Row label="Cargo Co." value={card.cargo_company_name} />
-        <Row label="MAWB" value={card.mawb} />
-        <Row label="HAWB" value={card.hawb} />
+        <Row label="MAWB" value={card.mawb_number} />
+        <Row label="HAWB" value={card.hawb_number} />
         <Row label="Flight #" value={card.flight_number} />
-        <Row label="ETD" value={card.etd} />
-        <Row label="ETA" value={card.eta} />
+        <Row label="ETD" value={card.cargo_etd} />
+        <Row label="ETA" value={card.cargo_eta} />
       </div>
     );
   }
@@ -248,7 +253,7 @@ function ReadView({ card, drivers, method, hasDetails, onEdit }: {
     return (
       <div className="space-y-1.5">
         <Row label="Method" value={card.other_method_name} />
-        <Row label="Reference" value={card.other_reference} />
+        <Row label="Reference" value={card.other_tracking_ref} />
       </div>
     );
   }
@@ -258,9 +263,9 @@ function ReadView({ card, drivers, method, hasDetails, onEdit }: {
 type FormState = {
   delivery_method: string; delivery_type: string; driver_id: string; driver_name_manual: string;
   driver_phone_manual: string; vehicle_type_manual: string; license_plate_manual: string;
-  courier_name: string; tracking_number: string; cargo_company_name: string;
-  mawb: string; hawb: string; flight_number: string; etd: string; eta: string;
-  other_method_name: string; other_reference: string;
+  courier_company_name: string; tracking_number: string; cargo_company_name: string;
+  mawb_number: string; hawb_number: string; flight_number: string; cargo_etd: string; cargo_eta: string;
+  other_method_name: string; other_tracking_ref: string;
 };
 
 function EditForm({ form, setForm, drivers, courierCompanies, cargoCompanies }: {
@@ -354,8 +359,8 @@ function EditForm({ form, setForm, drivers, courierCompanies, cargoCompanies }: 
           {courierCompanies.length > 0 ? (
             <Select
               label="Courier"
-              value={form.courier_name}
-              onChange={f('courier_name')}
+              value={form.courier_company_name}
+              onChange={f('courier_company_name')}
               options={[
                 { value: '', label: '— Select courier —' },
                 ...courierCompanies.filter((c) => c.active).map((c) => ({ value: c.name, label: c.name })),
@@ -363,8 +368,8 @@ function EditForm({ form, setForm, drivers, courierCompanies, cargoCompanies }: 
               ]}
             />
           ) : null}
-          {(form.courier_name === '__manual__' || courierCompanies.length === 0) && (
-            <Input label="Courier Name" value={form.courier_name === '__manual__' ? '' : form.courier_name} onChange={f('courier_name')} placeholder="e.g. Kerry Express" />
+          {(form.courier_company_name === '__manual__' || courierCompanies.length === 0) && (
+            <Input label="Courier Name" value={form.courier_company_name === '__manual__' ? '' : form.courier_company_name} onChange={f('courier_company_name')} placeholder="e.g. Kerry Express" />
           )}
           <Input label="Tracking Number" value={form.tracking_number} onChange={f('tracking_number')} placeholder="e.g. TH123456789" />
         </>
@@ -388,13 +393,13 @@ function EditForm({ form, setForm, drivers, courierCompanies, cargoCompanies }: 
             <Input label="Cargo Company" value={form.cargo_company_name === '__manual__' ? '' : form.cargo_company_name} onChange={f('cargo_company_name')} placeholder="e.g. Thai Airways Cargo" />
           )}
           <div className="grid grid-cols-2 gap-3">
-            <Input label="MAWB" value={form.mawb} onChange={f('mawb')} placeholder="Master Airway Bill" />
-            <Input label="HAWB" value={form.hawb} onChange={f('hawb')} placeholder="House Airway Bill" />
+            <Input label="MAWB" value={form.mawb_number} onChange={f('mawb_number')} placeholder="Master Airway Bill" />
+            <Input label="HAWB" value={form.hawb_number} onChange={f('hawb_number')} placeholder="House Airway Bill" />
           </div>
           <Input label="Flight Number" value={form.flight_number} onChange={f('flight_number')} placeholder="e.g. TG401" />
           <div className="grid grid-cols-2 gap-3">
-            <Input label="ETD" value={form.etd} onChange={f('etd')} type="date" />
-            <Input label="ETA" value={form.eta} onChange={f('eta')} type="date" />
+            <Input label="ETD" value={form.cargo_etd} onChange={f('cargo_etd')} type="date" />
+            <Input label="ETA" value={form.cargo_eta} onChange={f('cargo_eta')} type="date" />
           </div>
         </>
       )}
@@ -402,7 +407,7 @@ function EditForm({ form, setForm, drivers, courierCompanies, cargoCompanies }: 
       {method === 'other' && (
         <>
           <Input label="Method Name" value={form.other_method_name} onChange={f('other_method_name')} placeholder="e.g. Sea Freight, Motorbike, Self-collect" />
-          <Input label="Reference Number" value={form.other_reference} onChange={f('other_reference')} placeholder="e.g. booking ref or container #" />
+          <Input label="Reference Number" value={form.other_tracking_ref} onChange={f('other_tracking_ref')} placeholder="e.g. booking ref or container #" />
         </>
       )}
     </div>

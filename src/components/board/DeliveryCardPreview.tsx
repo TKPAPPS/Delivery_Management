@@ -24,7 +24,7 @@ export default function DeliveryCardPreview({ card, dragging }: DeliveryCardPrev
   const driverName = card.driver?.name ?? card.driver_name_manual ?? null;
   const logisticsLine = (() => {
     if (method === 'car') return driverName;
-    if (method === 'post') return card.courier_name ?? card.tracking_number ?? null;
+    if (method === 'post') return card.courier_company_name ?? card.tracking_number ?? null;
     if (method === 'air') return card.cargo_company_name ?? card.flight_number ?? null;
     if (method === 'other') return card.other_method_name ?? null;
     return null;

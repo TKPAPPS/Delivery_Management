@@ -139,16 +139,16 @@ type CardRow = Record<string, unknown> & {
   delivery_notes: string | null;
   driver_name_manual: string | null;
   driver_phone_manual: string | null;
-  courier_name: string | null;
+  courier_company_name: string | null;
   tracking_number: string | null;
   cargo_company_name: string | null;
-  mawb: string | null;
-  hawb: string | null;
+  mawb_number: string | null;
+  hawb_number: string | null;
   flight_number: string | null;
-  etd: string | null;
-  eta: string | null;
+  cargo_etd: string | null;
+  cargo_eta: string | null;
   other_method_name: string | null;
-  other_reference: string | null;
+  other_tracking_ref: string | null;
   driver: { name: string; phone: string | null; vehicle_type: string | null; license_plate: string | null } | null;
   customers: Array<{
     customer_name: string;
@@ -188,19 +188,19 @@ function buildSummaryText(
     if (vehicle) lines.push(`Vehicle: ${vehicle}${plate ? ` — ${plate}` : ''}`);
   } else if (method === 'post') {
     lines.push(`Method:   Post / Courier`);
-    if (card.courier_name) lines.push(`Courier:  ${card.courier_name}`);
+    if (card.courier_company_name) lines.push(`Courier:  ${card.courier_company_name}`);
     if (card.tracking_number) lines.push(`Tracking: ${card.tracking_number}`);
   } else if (method === 'air') {
     lines.push(`Method:   Air Freight`);
     if (card.cargo_company_name) lines.push(`Cargo Co: ${card.cargo_company_name}`);
-    if (card.mawb) lines.push(`MAWB:     ${card.mawb}`);
-    if (card.hawb) lines.push(`HAWB:     ${card.hawb}`);
+    if (card.mawb_number) lines.push(`MAWB:     ${card.mawb_number}`);
+    if (card.hawb_number) lines.push(`HAWB:     ${card.hawb_number}`);
     if (card.flight_number) lines.push(`Flight:   ${card.flight_number}`);
-    if (card.etd) lines.push(`ETD:      ${card.etd}`);
-    if (card.eta) lines.push(`ETA:      ${card.eta}`);
+    if (card.cargo_etd) lines.push(`ETD:      ${card.cargo_etd}`);
+    if (card.cargo_eta) lines.push(`ETA:      ${card.cargo_eta}`);
   } else if (method === 'other') {
     lines.push(`Method:    ${card.other_method_name ?? 'Other'}`);
-    if (card.other_reference) lines.push(`Reference: ${card.other_reference}`);
+    if (card.other_tracking_ref) lines.push(`Reference: ${card.other_tracking_ref}`);
   }
   lines.push(``);
 

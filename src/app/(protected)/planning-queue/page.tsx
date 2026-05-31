@@ -7,6 +7,7 @@ import Modal from '@/components/ui/Modal';
 import Input from '@/components/ui/Input';
 import DestinationInput from '@/components/ui/DestinationInput';
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { useDebouncedCallback } from '@/lib/useDebouncedCallback';
 import { useToastStore } from '@/store/toastStore';
 import { ClipboardList, RefreshCw, Trash2, Plus, ArrowRight, ChevronUp, ChevronDown } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
@@ -52,16 +53,17 @@ export default function PlanningQueuePage() {
 
   useEffect(() => { fetchItems(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Live sync with board / dashboard / card detail.
+  // Live sync with board / dashboard / card detail. Debounced to coalesce bursts.
+  const scheduleRefetch = useDebouncedCallback(() => { void fetchItems(); });
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
     const channel = supabase
       .channel('planning-queue-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_cards' }, fetchItems)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_customers' }, fetchItems)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_cards' }, scheduleRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_customers' }, scheduleRefetch)
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [scheduleRefetch]);
 
   const handleRemove = async (id: string) => {
     setBusyId(id);

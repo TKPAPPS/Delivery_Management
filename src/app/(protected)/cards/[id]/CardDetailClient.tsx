@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { useDebouncedCallback } from '@/lib/useDebouncedCallback';
 import type { DeliveryCardFull, DeliveryCard, Driver, DeliveryStatus } from '@/types';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
@@ -57,6 +59,18 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
       // ignore
     }
   }, [card.id]);
+
+  // Live sync: refetch this card when it (or its customers) change from elsewhere.
+  const scheduleRefresh = useDebouncedCallback(() => { void refresh(); });
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+    const channel = supabase
+      .channel(`card-${card.id}-realtime`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_cards', filter: `id=eq.${card.id}` }, scheduleRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_customers', filter: `delivery_card_id=eq.${card.id}` }, scheduleRefresh)
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [card.id, scheduleRefresh]);
 
   const handleStatusChange = (status: DeliveryStatus) => {
     setCard((c) => ({ ...c, status }));

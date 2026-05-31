@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { DragDropContext, DropResult } from '@hello-pangea/dnd';
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { useDebouncedCallback } from '@/lib/useDebouncedCallback';
 import KanbanColumn from '@/components/board/KanbanColumn';
 import CreateCardModal from '@/components/board/CreateCardModal';
 import Button from '@/components/ui/Button';
@@ -117,22 +118,24 @@ export default function BoardClient({ initialCards }: BoardClientProps) {
   };
 
   // Live sync: refetch the board whenever cards/customers change anywhere in the app.
+  // Debounced so a bulk change (e.g. many cards moving) collapses into one refetch.
+  const reload = useCallback(async () => {
+    try {
+      const res = await fetch('/api/cards?include_customers=true');
+      const data = await res.json();
+      if (data.cards) setCards(data.cards);
+    } catch { /* transient — next event will retry */ }
+  }, []);
+  const scheduleReload = useDebouncedCallback(() => { void reload(); });
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
-    const reload = async () => {
-      try {
-        const res = await fetch('/api/cards?include_customers=true');
-        const data = await res.json();
-        if (data.cards) setCards(data.cards);
-      } catch { /* transient — next event will retry */ }
-    };
     const channel = supabase
       .channel('board-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_cards' }, reload)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_customers' }, reload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_cards' }, scheduleReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_customers' }, scheduleReload)
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, []);
+  }, [scheduleReload]);
 
   const mobileCards = mobileFilter === 'all' ? visibleCards : visibleCards.filter((c) => c.status === mobileFilter);
 

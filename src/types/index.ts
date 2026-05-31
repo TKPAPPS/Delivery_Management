@@ -112,18 +112,20 @@ export interface DeliveryCard {
   vehicle_type_manual: string | null;
   license_plate_manual: string | null;
   // Post / Courier
-  courier_name: string | null;
+  courier_company_id: string | null;
+  courier_company_name: string | null;
   tracking_number: string | null;
   // Air Freight
+  cargo_company_id: string | null;
   cargo_company_name: string | null;
-  mawb: string | null;
-  hawb: string | null;
+  mawb_number: string | null;
+  hawb_number: string | null;
   flight_number: string | null;
-  etd: string | null;
-  eta: string | null;
+  cargo_etd: string | null;
+  cargo_eta: string | null;
   // Other
   other_method_name: string | null;
-  other_reference: string | null;
+  other_tracking_ref: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
