@@ -18,7 +18,9 @@ The app exists to turn sales demand into coordinated, tracked deliveries with on
 6. **Odoo ingestion, read-only** — confirmed Odoo 18 sale orders sync into the Orders Pool. Hard guarantee: no write-back to Odoo (the client rejects all non-read methods).
 7. **Reliability over polish** — audited API routes, graceful degradation (emails/notifications log skipped/failed, never crash a workflow).
 
-> Known architectural gap: the **Orders Pool** (Odoo orders) and the **delivery cards** are currently two parallel systems with **no Order→delivery-card bridge**. Deliveries are created independently of the orders they fulfill.
+### Order → Delivery bridge
+
+Orders are turned into deliveries via **`POST /api/deliveries/from-orders`** `{ order_ids: string[] }`: it creates one **draft** `delivery_card`, one `delivery_customer` per order (name/email pulled from the linked Customer Directory entry), maps distinct `sale_order_number`s → `customer_sale_orders` and each order line → `extra_delivery_items`, then marks each order `status='assigned'` and sets `orders.delivery_card_id` (FK, `on delete set null`). UI: "Create Delivery" on the order detail page, and multi-select → "Create Delivery" on the Orders Pool (merges several orders into one card, each as a customer). The Orders Pool defaults to an **"Active (unassigned)"** view that hides assigned/completed/cancelled; assigned rows link to their card. Partial/qty-based fulfillment is out of scope (warehouse Phase 4).
 
 ## Commands
 

@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Plus, Pencil, Trash2, Check, X } from 'lucide-react';
+import { ArrowLeft, Plus, Pencil, Trash2, Check, X, Truck, ExternalLink } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
@@ -212,6 +212,27 @@ export default function OrderDetailClient({ initialOrder, role }: Props) {
   const canWrite = ['admin', 'sales'].includes(role);
   const isEditable = canWrite && order.status !== 'completed' && order.status !== 'cancelled' && order.source === 'manual';
 
+  // Order -> Delivery bridge
+  const canDispatch = ['admin', 'sales', 'logistics'].includes(role);
+  const [creatingDelivery, setCreatingDelivery] = useState(false);
+  const createDelivery = async () => {
+    setCreatingDelivery(true);
+    try {
+      const res = await fetch('/api/deliveries/from-orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_ids: [order.id] }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Failed to create delivery');
+      addToast('Delivery card created', 'success');
+      router.push(`/cards/${data.card_id}`);
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Failed to create delivery', 'error');
+      setCreatingDelivery(false);
+    }
+  };
+
   return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto">
       {/* Back + header */}
@@ -235,6 +256,18 @@ export default function OrderDetailClient({ initialOrder, role }: Props) {
             </div>
           </div>
           <div className="flex gap-2 shrink-0">
+            {order.delivery_card_id ? (
+              <Link
+                href={`/cards/${order.delivery_card_id}`}
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-crimson-700 border border-crimson-200 rounded-lg px-3 py-1.5 hover:bg-crimson-50 transition-colors"
+              >
+                <ExternalLink className="w-3.5 h-3.5" /> View delivery
+              </Link>
+            ) : canDispatch && order.status !== 'completed' && order.status !== 'cancelled' ? (
+              <Button size="sm" onClick={createDelivery} loading={creatingDelivery}>
+                <Truck className="w-3.5 h-3.5" /> Create Delivery
+              </Button>
+            ) : null}
             {!editMode && isEditable && (
               <Button variant="outline" size="sm" onClick={startEdit}>
                 <Pencil className="w-3.5 h-3.5" /> Edit

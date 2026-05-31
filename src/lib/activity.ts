@@ -51,4 +51,6 @@ export const ACTIONS = {
   ORDER_LINE_ADDED: 'order_line_added',
   ORDER_LINE_UPDATED: 'order_line_updated',
   ORDER_LINE_DELETED: 'order_line_deleted',
+  ORDER_ASSIGNED: 'order_assigned',
+  DELIVERY_CREATED_FROM_ORDERS: 'delivery_created_from_orders',
 } as const;

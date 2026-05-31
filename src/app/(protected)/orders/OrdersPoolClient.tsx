@@ -2,7 +2,8 @@
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { Plus, Search, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Plus, Search, X, Truck, ExternalLink } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import CreateOrderModal from '@/components/orders/CreateOrderModal';
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
@@ -12,6 +13,7 @@ import { formatDate, orderPriorityLabel, orderPriorityColor, orderStatusLabel, o
 import type { OrderListItem } from '@/types';
 
 const STATUS_OPTIONS = [
+  { value: 'active', label: 'Active (unassigned)' },
   { value: '', label: 'All statuses' },
   { value: 'pending', label: 'Pending' },
   { value: 'assigned', label: 'Assigned' },
@@ -19,6 +21,9 @@ const STATUS_OPTIONS = [
   { value: 'completed', label: 'Completed' },
   { value: 'cancelled', label: 'Cancelled' },
 ];
+
+// Statuses considered "handled" — hidden under the default Active view.
+const HANDLED_STATUSES = ['assigned', 'completed', 'cancelled'];
 
 const PRIORITY_OPTIONS = [
   { value: '', label: 'All priorities' },
@@ -49,16 +54,20 @@ interface Props {
 }
 
 export default function OrdersPoolClient({ initialOrders, role }: Props) {
+  const router = useRouter();
   const [orders, setOrders] = useState<OrderListItem[]>(initialOrders);
   const [createOpen, setCreateOpen] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [creatingDelivery, setCreatingDelivery] = useState(false);
 
   // Filters
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('active');
   const [priorityFilter, setPriorityFilter] = useState('');
   const [sourceFilter, setSourceFilter] = useState('');
 
   const canWrite = ['admin', 'sales'].includes(role);
+  const canDispatch = ['admin', 'sales', 'logistics'].includes(role);
   const addToast = useToastStore((s) => s.addToast);
 
   const fetchOrders = useCallback(async () => {
@@ -87,7 +96,9 @@ export default function OrdersPoolClient({ initialOrders, role }: Props) {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const matched = orders.filter((o) => {
-      if (statusFilter && o.status !== statusFilter) return false;
+      if (statusFilter === 'active') {
+        if (HANDLED_STATUSES.includes(o.status)) return false;
+      } else if (statusFilter && o.status !== statusFilter) return false;
       if (priorityFilter && String(o.priority) !== priorityFilter) return false;
       if (sourceFilter && o.source !== sourceFilter) return false;
       if (q) {
@@ -110,8 +121,39 @@ export default function OrdersPoolClient({ initialOrders, role }: Props) {
     );
   }, [orders, search, statusFilter, priorityFilter, sourceFilter]);
 
-  const clearFilters = () => { setSearch(''); setStatusFilter(''); setPriorityFilter(''); setSourceFilter(''); };
-  const hasFilters = !!(search || statusFilter || priorityFilter || sourceFilter);
+  const clearFilters = () => { setSearch(''); setStatusFilter('active'); setPriorityFilter(''); setSourceFilter(''); };
+  const hasFilters = !!(search || statusFilter !== 'active' || priorityFilter || sourceFilter);
+
+  // An order can be turned into a delivery only if not already assigned and not terminal.
+  const isDispatchable = (o: OrderListItem) => !o.delivery_card_id && o.status !== 'completed' && o.status !== 'cancelled';
+
+  const toggleSelected = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const createDelivery = async () => {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+    setCreatingDelivery(true);
+    try {
+      const res = await fetch('/api/deliveries/from-orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_ids: ids }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Failed to create delivery');
+      addToast(`Delivery created from ${ids.length} order${ids.length > 1 ? 's' : ''}`, 'success');
+      router.push(`/cards/${data.card_id}`);
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Failed to create delivery', 'error');
+      setCreatingDelivery(false);
+    }
+  };
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
@@ -168,6 +210,23 @@ export default function OrdersPoolClient({ initialOrders, role }: Props) {
         )}
       </div>
 
+      {/* Selection action bar */}
+      {canDispatch && selected.size > 0 && (
+        <div className="flex items-center justify-between gap-3 mb-4 px-4 py-3 bg-crimson-50 border border-crimson-200 rounded-lg">
+          <p className="text-sm text-crimson-800 font-medium">
+            {selected.size} order{selected.size > 1 ? 's' : ''} selected
+          </p>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setSelected(new Set())} className="text-sm text-slate-600 hover:text-slate-800 px-2">
+              Clear
+            </button>
+            <Button size="sm" onClick={createDelivery} loading={creatingDelivery}>
+              <Truck className="w-4 h-4" /> Create Delivery
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       {filtered.length === 0 ? (
         <div className="text-center py-16 text-slate-400">
@@ -178,6 +237,7 @@ export default function OrdersPoolClient({ initialOrders, role }: Props) {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
+                {canDispatch && <th className="w-10 px-4 py-3" />}
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Ref</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Customer</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Destination</th>
@@ -190,7 +250,20 @@ export default function OrdersPoolClient({ initialOrders, role }: Props) {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filtered.map((order) => (
-                <tr key={order.id} className="hover:bg-slate-50 transition-colors cursor-pointer">
+                <tr key={order.id} className="hover:bg-slate-50 transition-colors">
+                  {canDispatch && (
+                    <td className="px-4 py-3">
+                      {isDispatchable(order) ? (
+                        <input
+                          type="checkbox"
+                          checked={selected.has(order.id)}
+                          onChange={() => toggleSelected(order.id)}
+                          className="rounded border-slate-300 text-crimson-600 focus:ring-crimson-500"
+                          aria-label={`Select ${order.order_ref}`}
+                        />
+                      ) : null}
+                    </td>
+                  )}
                   <td className="px-4 py-3">
                     <Link href={`/orders/${order.id}`} className="font-mono text-xs font-medium text-crimson-700 hover:underline">
                       {order.order_ref}
@@ -204,9 +277,21 @@ export default function OrdersPoolClient({ initialOrders, role }: Props) {
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${orderStatusColor(order.status)}`}>
-                      {orderStatusLabel(order.status)}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${orderStatusColor(order.status)}`}>
+                        {orderStatusLabel(order.status)}
+                      </span>
+                      {order.delivery_card_id && (
+                        <Link
+                          href={`/cards/${order.delivery_card_id}`}
+                          title="View delivery"
+                          className="text-crimson-700 hover:text-crimson-800"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </Link>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-slate-500">{order._count.lines}</td>
                   <td className="px-4 py-3 text-slate-500 text-xs">{formatDate(order.order_date ?? order.created_at, 'Asia/Bangkok')}</td>
