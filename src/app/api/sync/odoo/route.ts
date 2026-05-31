@@ -207,9 +207,13 @@ export async function POST(req: NextRequest) {
             : null;
           const notes = odooOrder.note || null;
           // Odoo returns datetimes as UTC "YYYY-MM-DD HH:MM:SS" with no zone marker.
-          const orderDate = odooOrder.date_order
-            ? new Date(odooOrder.date_order.replace(' ', 'T') + 'Z').toISOString()
-            : null;
+          // Parse defensively: a malformed value becomes null, never an exception
+          // that would abort this order's whole import.
+          let orderDate: string | null = null;
+          if (odooOrder.date_order) {
+            const parsed = new Date(odooOrder.date_order.replace(' ', 'T') + 'Z');
+            if (!isNaN(parsed.getTime())) orderDate = parsed.toISOString();
+          }
 
           const { data: existing } = await admin
             .from('orders')

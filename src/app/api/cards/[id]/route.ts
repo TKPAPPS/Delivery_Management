@@ -53,9 +53,27 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const { data: existing } = await admin.from('delivery_cards').select('*').eq('id', params.id).single();
   if (!existing) return NextResponse.json({ error: 'Card not found' }, { status: 404 });
 
+  // Whitelist updatable columns. Identity/lifecycle fields (id, delivery_ref,
+  // created_by, created_at, delivered_at) and `status` are intentionally NOT here:
+  // status must go through /api/cards/[id]/status so notifications + customer emails fire.
+  const ALLOWED_FIELDS = [
+    'destination', 'planned_date', 'priority', 'internal_notes', 'delivery_notes',
+    'delivery_method', 'delivery_type', 'sort_order', 'is_archived', 'archived_at',
+    'driver_id', 'driver_name_manual', 'driver_phone_manual', 'vehicle_type_manual', 'license_plate_manual',
+    'courier_name', 'tracking_number', 'cargo_company_name', 'mawb', 'hawb', 'flight_number', 'etd', 'eta',
+    'other_method_name', 'other_reference',
+  ] as const;
+  const updateData: Record<string, unknown> = {};
+  for (const field of ALLOWED_FIELDS) {
+    if (body[field] !== undefined) updateData[field] = body[field];
+  }
+  if (Object.keys(updateData).length === 0) {
+    return NextResponse.json({ error: 'No updatable fields provided' }, { status: 400 });
+  }
+
   const { data: card, error } = await admin
     .from('delivery_cards')
-    .update(body)
+    .update(updateData)
     .eq('id', params.id)
     .select()
     .single();
@@ -82,7 +100,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       });
     }
   } else {
-    await logActivity(params.id, user.id, ACTIONS.CARD_UPDATED, { changes: Object.keys(body) });
+    await logActivity(params.id, user.id, ACTIONS.CARD_UPDATED, { changes: Object.keys(updateData) });
   }
 
   return NextResponse.json({ card });

@@ -66,7 +66,7 @@ export default function OrdersPoolClient({ initialOrders, role }: Props) {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return orders.filter((o) => {
+    const matched = orders.filter((o) => {
       if (statusFilter && o.status !== statusFilter) return false;
       if (priorityFilter && String(o.priority) !== priorityFilter) return false;
       if (sourceFilter && o.source !== sourceFilter) return false;
@@ -82,6 +82,12 @@ export default function OrdersPoolClient({ initialOrders, role }: Props) {
       }
       return true;
     });
+    // Sort to match what the table shows: priority first, then the displayed
+    // date column (order_date, falling back to created_at), newest first.
+    return matched.sort((a, b) =>
+      b.priority - a.priority ||
+      (b.order_date ?? b.created_at).localeCompare(a.order_date ?? a.created_at)
+    );
   }, [orders, search, statusFilter, priorityFilter, sourceFilter]);
 
   const clearFilters = () => { setSearch(''); setStatusFilter(''); setPriorityFilter(''); setSourceFilter(''); };
@@ -183,7 +189,7 @@ export default function OrdersPoolClient({ initialOrders, role }: Props) {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-slate-500">{order._count.lines}</td>
-                  <td className="px-4 py-3 text-slate-500 text-xs">{formatDate(order.order_date ?? order.created_at)}</td>
+                  <td className="px-4 py-3 text-slate-500 text-xs">{formatDate(order.order_date ?? order.created_at, 'Asia/Bangkok')}</td>
                   <td className="px-4 py-3">
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600">
                       {order.source}

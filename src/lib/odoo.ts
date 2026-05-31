@@ -98,6 +98,15 @@ export async function odooAuthenticate(): Promise<number> {
   return uid;
 }
 
+// Hard guarantee: this integration is READ-ONLY. Only these Odoo methods may be
+// called via execute_kw. Any write method (create, write, unlink, copy, action_*,
+// button_*, etc.) is rejected here before it can reach Odoo — there is no code
+// path that can mutate Odoo, regardless of caller.
+const ODOO_READ_ONLY_METHODS = [
+  'search', 'search_read', 'read', 'search_count', 'read_group',
+  'fields_get', 'name_get', 'name_search', 'default_get', 'check_access_rights',
+] as const;
+
 export async function odooExecuteKw(
   uid: number,
   model: string,
@@ -105,6 +114,12 @@ export async function odooExecuteKw(
   args: unknown[],
   kwargs: Record<string, unknown> = {},
 ): Promise<unknown> {
+  if (!ODOO_READ_ONLY_METHODS.includes(method as (typeof ODOO_READ_ONLY_METHODS)[number])) {
+    throw new Error(
+      `Odoo integration is read-only: method "${method}" on "${model}" is not permitted. ` +
+      `Allowed methods: ${ODOO_READ_ONLY_METHODS.join(', ')}.`,
+    );
+  }
   const client = makeClient('/xmlrpc/2/object');
   return callRpc(client, 'execute_kw', [
     process.env.ODOO_DB!,
