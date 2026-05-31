@@ -10,6 +10,7 @@ export interface OdooSaleOrder {
   partner_id: [number, string] | false;
   partner_shipping_id: [number, string] | false;
   note: string | false;
+  date_order: string | false;
 }
 
 export interface OdooOrderLine {

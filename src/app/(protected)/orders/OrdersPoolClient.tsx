@@ -158,7 +158,7 @@ export default function OrdersPoolClient({ initialOrders, role }: Props) {
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Priority</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Status</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Lines</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Created</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Order Date</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Source</th>
               </tr>
             </thead>
@@ -183,7 +183,7 @@ export default function OrdersPoolClient({ initialOrders, role }: Props) {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-slate-500">{order._count.lines}</td>
-                  <td className="px-4 py-3 text-slate-500 text-xs">{formatDate(order.created_at)}</td>
+                  <td className="px-4 py-3 text-slate-500 text-xs">{formatDate(order.order_date ?? order.created_at)}</td>
                   <td className="px-4 py-3">
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600">
                       {order.source}

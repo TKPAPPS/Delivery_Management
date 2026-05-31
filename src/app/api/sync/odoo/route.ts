@@ -152,7 +152,7 @@ export async function POST(req: NextRequest) {
     if (since) domain.push(['write_date', '>=', since]);
 
     const odooOrders = (await odooExecuteKw(uid, 'sale.order', 'search_read', [domain], {
-      fields: ['id', 'name', 'partner_id', 'partner_shipping_id', 'note'],
+      fields: ['id', 'name', 'partner_id', 'partner_shipping_id', 'note', 'date_order'],
       limit: 0,
     })) as OdooSaleOrder[];
 
@@ -206,6 +206,10 @@ export async function POST(req: NextRequest) {
             ? odooOrder.partner_shipping_id[1]
             : null;
           const notes = odooOrder.note || null;
+          // Odoo returns datetimes as UTC "YYYY-MM-DD HH:MM:SS" with no zone marker.
+          const orderDate = odooOrder.date_order
+            ? new Date(odooOrder.date_order.replace(' ', 'T') + 'Z').toISOString()
+            : null;
 
           const { data: existing } = await admin
             .from('orders')
@@ -226,6 +230,7 @@ export async function POST(req: NextRequest) {
                 customer_name_manual: customerName,
                 destination_manual: destinationName,
                 notes,
+                order_date: orderDate,
                 priority: 3,
                 status: 'pending',
               })
@@ -241,6 +246,7 @@ export async function POST(req: NextRequest) {
                 customer_name_manual: customerName,
                 destination_manual: destinationName,
                 notes,
+                order_date: orderDate,
                 odoo_sync_log_id: syncLogId,
               })
               .eq('id', existing.id);
