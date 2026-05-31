@@ -33,6 +33,9 @@ interface OrderRow {
 export async function POST(req: NextRequest) {
   const ctx = await getSessionUser();
   if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!['admin', 'sales', 'logistics'].includes(ctx.profile.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
   const { user } = ctx;
 
   const parsed = await parseBody<{ order_ids: string[] }>(req);
@@ -62,27 +65,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Orders not found' }, { status: 404 });
   }
 
-  // Refuse if any order is already assigned to a delivery, or is cancelled/completed.
-  const alreadyAssigned = orders.filter((o) => o.delivery_card_id);
-  if (alreadyAssigned.length > 0) {
-    return NextResponse.json(
-      { error: `Already assigned to a delivery: ${alreadyAssigned.map((o) => o.order_ref).join(', ')}` },
-      { status: 409 },
-    );
-  }
-  const terminal = orders.filter((o) => o.status === 'cancelled' || o.status === 'completed');
-  if (terminal.length > 0) {
-    return NextResponse.json(
-      { error: `Cannot create a delivery from ${terminal[0].status} orders: ${terminal.map((o) => o.order_ref).join(', ')}` },
-      { status: 409 },
-    );
-  }
-
   const resolveDest = (o: OrderRow) => o.destination?.name ?? o.destination_manual ?? '';
   const resolveCustomer = (o: OrderRow) => o.customer?.name ?? o.customer_name_manual ?? 'Unknown';
 
-  // Card destination: use the first order's destination (orders are usually merged by destination).
-  const destination = resolveDest(orders[0]) || 'Unassigned';
+  // Skip (don't reject the whole batch) orders that are already assigned or closed.
+  const skipped: string[] = orders
+    .filter((o) => o.delivery_card_id || o.status === 'completed' || o.status === 'cancelled')
+    .map((o) => o.order_ref);
+  const candidates = orders.filter((o) => !o.delivery_card_id && o.status !== 'completed' && o.status !== 'cancelled');
+
+  if (candidates.length === 0) {
+    return NextResponse.json(
+      { error: `No eligible orders (already assigned or closed): ${skipped.join(', ')}` },
+      { status: 409 },
+    );
+  }
+
+  // Card destination: first candidate's destination (orders are usually merged by destination).
+  const destination = resolveDest(candidates[0]) || 'Unassigned';
 
   const { data: card, error: cardErr } = await admin
     .from('delivery_cards')
@@ -94,11 +94,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: cardErr?.message ?? 'Failed to create delivery card' }, { status: 500 });
   }
 
-  for (let i = 0; i < orders.length; i++) {
-    const o = orders[i];
-    const liveLines = (o.lines ?? []).filter((l) => !l.deleted_at);
+  const assigned: string[] = [];
 
-    const { data: cust } = await admin
+  for (let i = 0; i < candidates.length; i++) {
+    const o = candidates[i];
+
+    // Atomically claim the order: only succeeds if it's still unassigned. This closes
+    // the read-then-write race (two requests can't both claim the same order).
+    const { data: claimed } = await admin
+      .from('orders')
+      .update({ status: 'assigned', delivery_card_id: card.id })
+      .eq('id', o.id)
+      .is('delivery_card_id', null)
+      .select('id')
+      .maybeSingle();
+
+    if (!claimed) { skipped.push(o.order_ref); continue; }
+
+    const liveLines = (o.lines ?? []).filter((l) => !l.deleted_at);
+    const { data: cust, error: custErr } = await admin
       .from('delivery_customers')
       .insert({
         delivery_card_id: card.id,
@@ -107,38 +121,51 @@ export async function POST(req: NextRequest) {
         customer_email: o.customer?.email ?? null,
         receive_auto_emails: true,
         notes: `From order ${o.order_ref}`,
-        sort_order: i,
+        sort_order: assigned.length,
       })
       .select('id')
       .single();
 
-    if (cust) {
-      const soNumbers = Array.from(
-        new Set(liveLines.map((l) => l.sale_order_number?.trim()).filter((s): s is string => !!s)),
-      );
-      if (soNumbers.length > 0) {
-        await admin.from('customer_sale_orders').insert(
-          soNumbers.map((so) => ({ delivery_customer_id: cust.id, sale_order_number: so })),
-        );
-      }
-      if (liveLines.length > 0) {
-        await admin.from('extra_delivery_items').insert(
-          liveLines.map((l) => ({
-            delivery_customer_id: cust.id,
-            item_name: l.product_code ? `${l.product_code} — ${l.product_name}` : l.product_name,
-            quantity: String(l.qty_ordered),
-          })),
-        );
-      }
+    // If building the customer failed, release the claim so the order isn't silently
+    // marked assigned with nothing on the card.
+    if (custErr || !cust) {
+      await admin.from('orders').update({ status: o.status, delivery_card_id: null }).eq('id', o.id);
+      skipped.push(o.order_ref);
+      continue;
     }
 
-    await admin.from('orders').update({ status: 'assigned', delivery_card_id: card.id }).eq('id', o.id);
+    const soNumbers = Array.from(
+      new Set(liveLines.map((l) => l.sale_order_number?.trim()).filter((s): s is string => !!s)),
+    );
+    if (soNumbers.length > 0) {
+      await admin.from('customer_sale_orders').insert(
+        soNumbers.map((so) => ({ delivery_customer_id: cust.id, sale_order_number: so })),
+      );
+    }
+    if (liveLines.length > 0) {
+      await admin.from('extra_delivery_items').insert(
+        liveLines.map((l) => ({
+          delivery_customer_id: cust.id,
+          item_name: l.product_code ? `${l.product_code} — ${l.product_name}` : l.product_name,
+          quantity: String(l.qty_ordered),
+        })),
+      );
+    }
+
+    assigned.push(o.order_ref);
     await logActivity(null, user.id, ACTIONS.ORDER_ASSIGNED, { order_ref: o.order_ref, delivery_card_id: card.id }, { entity_type: 'order', entity_id: o.id });
   }
 
-  await logActivity(card.id, user.id, ACTIONS.DELIVERY_CREATED_FROM_ORDERS, {
-    order_refs: orders.map((o) => o.order_ref),
-  });
+  // Every candidate lost its claim (raced) or failed — clean up the empty card.
+  if (assigned.length === 0) {
+    await admin.from('delivery_cards').delete().eq('id', card.id);
+    return NextResponse.json(
+      { error: `Could not assign any orders (already taken): ${skipped.join(', ')}` },
+      { status: 409 },
+    );
+  }
 
-  return NextResponse.json({ card_id: card.id, delivery_ref: card.delivery_ref }, { status: 201 });
+  await logActivity(card.id, user.id, ACTIONS.DELIVERY_CREATED_FROM_ORDERS, { order_refs: assigned });
+
+  return NextResponse.json({ card_id: card.id, delivery_ref: card.delivery_ref, assigned, skipped }, { status: 201 });
 }

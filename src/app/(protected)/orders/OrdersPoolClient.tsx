@@ -147,7 +147,10 @@ export default function OrdersPoolClient({ initialOrders, role }: Props) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Failed to create delivery');
-      addToast(`Delivery created from ${ids.length} order${ids.length > 1 ? 's' : ''}`, 'success');
+      const n = data.assigned?.length ?? ids.length;
+      const skippedNote = data.skipped?.length ? `, ${data.skipped.length} skipped` : '';
+      addToast(`Delivery created from ${n} order${n > 1 ? 's' : ''}${skippedNote}`, 'success');
+      setSelected(new Set());
       router.push(`/cards/${data.card_id}`);
     } catch (err) {
       addToast(err instanceof Error ? err.message : 'Failed to create delivery', 'error');
