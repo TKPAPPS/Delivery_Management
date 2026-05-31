@@ -10,7 +10,7 @@ import Modal from '@/components/ui/Modal';
 import { useToastStore } from '@/store/toastStore';
 import { BookUser, Plus, Edit, RefreshCw } from 'lucide-react';
 
-const EMPTY_FORM = { name: '', contact_number: '', full_address: '', default_delivery_location: '', notes: '' };
+const EMPTY_FORM = { name: '', email: '', contact_number: '', full_address: '', default_delivery_location: '', notes: '' };
 
 export default function AdminCustomersPage() {
   const addToast = useToastStore((s) => s.addToast);
@@ -46,6 +46,7 @@ export default function AdminCustomersPage() {
     setEditCustomer(c);
     setForm({
       name: c.name,
+      email: c.email ?? '',
       contact_number: c.contact_number ?? '',
       full_address: c.full_address ?? '',
       default_delivery_location: c.default_delivery_location ?? '',
@@ -120,7 +121,8 @@ export default function AdminCustomersPage() {
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="text-left px-4 py-3 font-semibold text-slate-600">Name</th>
-                <th className="text-left px-4 py-3 font-semibold text-slate-600">Contact</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-600">Email</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-600 hidden md:table-cell">Contact</th>
                 <th className="text-left px-4 py-3 font-semibold text-slate-600 hidden md:table-cell">Delivery Location</th>
                 <th className="text-left px-4 py-3 font-semibold text-slate-600">Status</th>
                 <th className="text-right px-4 py-3 font-semibold text-slate-600">Actions</th>
@@ -133,7 +135,8 @@ export default function AdminCustomersPage() {
                     <p className="font-medium text-slate-900">{c.name}</p>
                     {c.full_address && <p className="text-xs text-slate-400 mt-0.5 truncate max-w-[200px]">{c.full_address}</p>}
                   </td>
-                  <td className="px-4 py-3 text-slate-600">{c.contact_number ?? '—'}</td>
+                  <td className="px-4 py-3 text-slate-600">{c.email ?? '—'}</td>
+                  <td className="px-4 py-3 text-slate-600 hidden md:table-cell">{c.contact_number ?? '—'}</td>
                   <td className="px-4 py-3 text-slate-600 hidden md:table-cell">{c.default_delivery_location ?? '—'}</td>
                   <td className="px-4 py-3">
                     <Badge variant={c.active ? 'success' : 'gray'}>{c.active ? 'Active' : 'Inactive'}</Badge>
@@ -161,6 +164,7 @@ export default function AdminCustomersPage() {
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editCustomer ? 'Edit Customer' : 'Add Customer'} size="sm">
         <form onSubmit={handleSave} className="space-y-3">
           <Input label="Name *" value={form.name} onChange={f('name')} placeholder="Customer name" />
+          <Input label="Email" type="email" value={form.email} onChange={f('email')} placeholder="customer@email.com — used for automatic status emails" />
           <Input label="Contact Number" value={form.contact_number} onChange={f('contact_number')} placeholder="+66 XX XXXX XXXX" />
           <Input label="Default Delivery Location" value={form.default_delivery_location} onChange={f('default_delivery_location')} placeholder="e.g. Patong, Phuket" />
           <Textarea label="Full Address" value={form.full_address} onChange={f('full_address')} rows={2} placeholder="Full address..." />
