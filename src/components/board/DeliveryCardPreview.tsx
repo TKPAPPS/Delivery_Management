@@ -1,5 +1,6 @@
 import { cn, formatDate } from '@/lib/utils';
 import type { DeliveryCardWithCustomers } from '@/types';
+import Tooltip from '@/components/ui/Tooltip';
 import { MessageSquare, Paperclip, Truck, Mail, Plane, Package, AlertTriangle, PackageOpen, Clock } from 'lucide-react';
 import type { DeliveryMethod } from '@/types';
 
@@ -37,16 +38,9 @@ export default function DeliveryCardPreview({ card, dragging }: DeliveryCardPrev
       : 0;
   const isStuck = daysWaiting >= 2;
 
-  const accentTitle = card.priority === 'urgent'
-    ? 'Urgent priority'
-    : isStuck
-      ? `Waiting ${daysWaiting} days for booking`
-      : undefined;
-
   return (
     <Link href={`/cards/${card.id}`}>
       <div
-        title={accentTitle}
         className={cn(
           // Reserve a 4px left accent on every card so they align; colour it only when meaningful.
           'bg-white rounded-lg border border-slate-200 border-l-4 border-l-transparent p-3 cursor-pointer hover:border-crimson-300 transition-all',
@@ -59,10 +53,12 @@ export default function DeliveryCardPreview({ card, dragging }: DeliveryCardPrev
         <div className="flex items-start justify-between gap-2 mb-2">
           <span className="font-mono text-xs text-crimson-700">{card.delivery_ref}</span>
           {card.priority === 'urgent' && (
-            <span title="Urgent priority" className="inline-flex items-center gap-1 bg-crimson-100 text-crimson-700 text-xs px-1.5 py-0.5 rounded-full font-medium flex-shrink-0">
-              <AlertTriangle className="w-3 h-3" />
-              Urgent
-            </span>
+            <Tooltip label="Urgent priority" focusable={false} side="bottom" className="flex-shrink-0">
+              <span className="inline-flex items-center gap-1 bg-crimson-100 text-crimson-700 text-xs px-1.5 py-0.5 rounded-full font-medium">
+                <AlertTriangle className="w-3 h-3" />
+                Urgent
+              </span>
+            </Tooltip>
           )}
         </div>
 
@@ -110,38 +106,48 @@ export default function DeliveryCardPreview({ card, dragging }: DeliveryCardPrev
 
         {/* Logistics line */}
         {logisticsLine && (
-          <div title={`Delivery method: ${method}`} className="flex items-center gap-1 text-xs text-gold-700 mb-2">
-            <MethodIcon className="w-3 h-3 flex-shrink-0" />
-            <span className="truncate">{logisticsLine}</span>
-          </div>
+          <Tooltip label={`Delivery method: ${method}`} focusable={false} className="mb-2 max-w-full">
+            <span className="flex items-center gap-1 text-xs text-gold-700">
+              <MethodIcon className="w-3 h-3 flex-shrink-0" />
+              <span className="truncate">{logisticsLine}</span>
+            </span>
+          </Tooltip>
         )}
 
         {/* Footer */}
         <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
           <div className="flex items-center gap-3">
             {(card._count?.comments ?? 0) > 0 && (
-              <span title={`${card._count?.comments} comment${card._count?.comments === 1 ? '' : 's'}`} className="flex items-center gap-1 text-xs text-slate-400">
-                <MessageSquare className="w-3 h-3" />
-                {card._count?.comments}
-              </span>
+              <Tooltip label={`${card._count?.comments} comment${card._count?.comments === 1 ? '' : 's'}`} focusable={false}>
+                <span className="flex items-center gap-1 text-xs text-slate-400">
+                  <MessageSquare className="w-3 h-3" />
+                  {card._count?.comments}
+                </span>
+              </Tooltip>
             )}
             {(card._count?.attachments ?? 0) > 0 && (
-              <span title={`${card._count?.attachments} attachment${card._count?.attachments === 1 ? '' : 's'}`} className="flex items-center gap-1 text-xs text-slate-400">
-                <Paperclip className="w-3 h-3" />
-                {card._count?.attachments}
-              </span>
+              <Tooltip label={`${card._count?.attachments} attachment${card._count?.attachments === 1 ? '' : 's'}`} focusable={false}>
+                <span className="flex items-center gap-1 text-xs text-slate-400">
+                  <Paperclip className="w-3 h-3" />
+                  {card._count?.attachments}
+                </span>
+              </Tooltip>
             )}
             {hasPartial && (
-              <span title="One or more customers have a partial shipment" className="flex items-center gap-1 text-xs text-amber-600">
-                <PackageOpen className="w-3 h-3" />
-                Partial
-              </span>
+              <Tooltip label="One or more customers have a partial shipment" focusable={false}>
+                <span className="flex items-center gap-1 text-xs text-amber-600">
+                  <PackageOpen className="w-3 h-3" />
+                  Partial
+                </span>
+              </Tooltip>
             )}
             {isStuck && (
-              <span title={`Waiting ${daysWaiting} days for booking`} className="flex items-center gap-1 text-xs text-amber-600 font-medium">
-                <Clock className="w-3 h-3" />
-                {daysWaiting}d waiting
-              </span>
+              <Tooltip label={`Waiting ${daysWaiting} days for booking`} focusable={false}>
+                <span className="flex items-center gap-1 text-xs text-amber-600 font-medium">
+                  <Clock className="w-3 h-3" />
+                  {daysWaiting}d waiting
+                </span>
+              </Tooltip>
             )}
           </div>
           {card.creator && (

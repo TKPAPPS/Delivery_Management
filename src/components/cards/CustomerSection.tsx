@@ -21,6 +21,7 @@ import {
   MailX,
 } from 'lucide-react';
 import Input from '@/components/ui/Input';
+import Tooltip from '@/components/ui/Tooltip';
 
 interface CustomerSectionProps {
   customers: CustomerWithRelations[];
@@ -219,12 +220,14 @@ export default function CustomerSection({ customers, card, activeCards, onRefres
                     <Badge variant="warning">Partial</Badge>
                   )}
                   {!cust.customer_email && (
-                    <span
-                      title="No email on file — this customer won't receive automatic status updates. Add one via Edit."
-                      className="inline-flex items-center gap-1 text-xs text-slate-400 flex-shrink-0"
+                    <Tooltip
+                      label="No email on file — this customer won't receive automatic status updates. Add one via Edit."
+                      className="flex-shrink-0"
                     >
-                      <MailX className="w-3.5 h-3.5" /> no email
-                    </span>
+                      <span className="inline-flex items-center gap-1 text-xs text-slate-400">
+                        <MailX className="w-3.5 h-3.5" /> no email
+                      </span>
+                    </Tooltip>
                   )}
                   {cust.sale_orders.length > 0 && (
                     <span className="text-xs text-slate-400">

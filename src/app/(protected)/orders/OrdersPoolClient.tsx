@@ -8,6 +8,7 @@ import Button from '@/components/ui/Button';
 import CreateOrderModal from '@/components/orders/CreateOrderModal';
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { useDebouncedCallback } from '@/lib/useDebouncedCallback';
+import Tooltip from '@/components/ui/Tooltip';
 import { useToastStore } from '@/store/toastStore';
 import { formatDate, orderPriorityLabel, orderPriorityColor, orderStatusLabel, orderStatusColor } from '@/lib/utils';
 import type { OrderListItem } from '@/types';
@@ -285,14 +286,15 @@ export default function OrdersPoolClient({ initialOrders, role }: Props) {
                         {orderStatusLabel(order.status)}
                       </span>
                       {order.delivery_card_id && (
-                        <Link
-                          href={`/cards/${order.delivery_card_id}`}
-                          title="View delivery"
-                          className="text-crimson-700 hover:text-crimson-800"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </Link>
+                        <Tooltip label="View delivery card" focusable={false}>
+                          <Link
+                            href={`/cards/${order.delivery_card_id}`}
+                            className="text-crimson-700 hover:text-crimson-800"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </Link>
+                        </Tooltip>
                       )}
                     </div>
                   </td>
