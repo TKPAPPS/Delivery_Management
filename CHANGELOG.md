@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented here. Dates are YYYY-MM-DD.
 
+## 2026-06-02 (whole-app must-fix round)
+
+- **Error/not-found pages:** added app-level `not-found.tsx`, `error.tsx`, and `global-error.tsx` so
+  bad URLs or server errors show a styled page with a recovery link instead of the bare Next default.
+- **Card soft-delete + restore:** deleting a delivery card now sets `deleted_at` (reversible) instead
+  of hard-deleting; attachments are kept. All card list views filter out deleted cards; admins get a
+  "Deleted" tab in History with one-click Restore. Replaces irreversible hard delete.
+- **Simplified roles:** the user role picker now offers only admin / logistics / Staff (the enforced
+  roles). `stock_manager` and `warehouse` (which gated nothing) are no longer assignable; existing
+  such users were migrated to Staff.
+- **Pending-signup alert:** when a new account lands in "pending", a one-time LINE message is sent to
+  the team group so admins activate it promptly (`profiles.pending_notified` guards against repeats).
+
 ## 2026-06-02
 
 ### Security & copy fixes (post-audit must-fix)

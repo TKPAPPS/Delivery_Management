@@ -21,6 +21,7 @@ export default async function BoardPage() {
           extra_items:extra_delivery_items(*)
         )
       `)
+      .is('deleted_at', null)
       .eq('is_archived', false)
       .in('status', ['draft', 'pending_booking', 'booked', 'in_transit'])
       .order('created_at', { ascending: false }),

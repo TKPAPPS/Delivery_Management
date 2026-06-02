@@ -69,6 +69,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   for (const field of ALLOWED_FIELDS) {
     if (body[field] !== undefined) updateData[field] = body[field];
   }
+
+  // Restore (admin only): clearing deleted_at brings a soft-deleted card back. Soft-deleting
+  // is not allowed via PATCH — it goes through DELETE — so only `null` is accepted here.
+  const isRestore = body.deleted_at === null;
+  if (isRestore) {
+    if (ctx.profile.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    updateData.deleted_at = null;
+  }
+
   if (Object.keys(updateData).length === 0) {
     return NextResponse.json({ error: 'No updatable fields provided' }, { status: 400 });
   }
@@ -122,6 +133,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         }
       }
     }
+  } else if (isRestore) {
+    await logActivity(params.id, user.id, ACTIONS.CARD_RESTORED);
   } else {
     await logActivity(params.id, user.id, ACTIONS.CARD_UPDATED, { changes: Object.keys(updateData) });
   }
@@ -148,25 +161,14 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     }
   }
 
-  // Collect attachment storage paths before deleting the card
-  const { data: attachments } = await admin
-    .from('attachments')
-    .select('storage_path')
-    .eq('delivery_card_id', params.id);
-
-  const { error } = await admin.from('delivery_cards').delete().eq('id', params.id);
+  // Soft-delete: hide the card but keep it (and its attachments) recoverable by an admin.
+  const { error } = await admin
+    .from('delivery_cards')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', params.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Clean up storage files — best-effort after successful DB delete
-  if (attachments && attachments.length > 0) {
-    const paths = attachments.map((a: { storage_path: string }) => a.storage_path);
-    const { error: storageError } = await admin.storage
-      .from('delivery-attachments')
-      .remove(paths);
-    if (storageError) {
-      console.error('[cards/delete] Storage cleanup failed for card', params.id, storageError.message);
-    }
-  }
+  await logActivity(params.id, ctx.user.id, ACTIONS.CARD_DELETED);
 
   return NextResponse.json({ success: true });
 }

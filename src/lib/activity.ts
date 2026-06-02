@@ -40,6 +40,8 @@ export const ACTIONS = {
   COMMENT_ADDED: 'comment_added',
   CARD_ARCHIVED: 'card_archived',
   CARD_UPDATED: 'card_updated',
+  CARD_DELETED: 'card_deleted',
+  CARD_RESTORED: 'card_restored',
   SALE_ORDER_ADDED: 'sale_order_added',
   SALE_ORDER_REMOVED: 'sale_order_removed',
   EXTRA_ITEM_ADDED: 'extra_item_added',

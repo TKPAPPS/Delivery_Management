@@ -16,6 +16,7 @@ export default async function DashboardPage() {
   const { data: cards } = await supabase
     .from('delivery_cards')
     .select('id, status, priority, planned_date, destination, delivery_ref, updated_at, created_at, status_changed_at, sort_order, is_archived')
+    .is('deleted_at', null)
     .eq('is_archived', false)
     .order('updated_at', { ascending: false });
 
@@ -34,6 +35,7 @@ export default async function DashboardPage() {
   const { data: deliveredRows } = await supabase
     .from('delivery_cards')
     .select('id')
+    .is('deleted_at', null)
     .eq('status', 'delivered')
     .gte('updated_at', startOfMonth);
   const deliveredThisMonth = deliveredRows?.length ?? 0;

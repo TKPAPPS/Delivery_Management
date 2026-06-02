@@ -43,6 +43,7 @@ export default async function CardDetailPage({ params }: PageProps) {
     supabase
       .from('delivery_cards')
       .select('id, delivery_ref, destination')
+      .is('deleted_at', null)
       .eq('is_archived', false)
       .neq('id', params.id)
       .order('created_at', { ascending: false }),

@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
     let q = admin
       .from('delivery_cards')
       .select('*')
+      .is('deleted_at', null)
       .eq('is_archived', isArchived)
       .order('created_at', { ascending: false });
     if (!isArchived) q = q.in('status', ['draft', 'pending_booking', 'booked', 'in_transit']);
@@ -41,6 +42,7 @@ export async function GET(req: NextRequest) {
         extra_items:extra_delivery_items(*)
       )
     `)
+    .is('deleted_at', null)
     .eq('is_archived', isArchived)
     .order('created_at', { ascending: false });
 

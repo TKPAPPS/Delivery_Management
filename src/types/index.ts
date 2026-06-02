@@ -16,6 +16,7 @@ export interface Profile {
   name: string | null;
   role: UserRole;
   active: boolean;
+  pending_notified: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -132,6 +133,7 @@ export interface DeliveryCard {
   is_archived: boolean;
   archived_at: string | null;
   delivered_at: string | null;
+  deleted_at: string | null;
 }
 
 export interface DeliveryCustomer {

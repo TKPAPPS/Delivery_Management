@@ -75,17 +75,22 @@ src/app/
 
 ## Role System
 
-Roles are stored in `profiles.role` (enum: `admin`, `sales`, `stock_manager`, `logistics`, `warehouse`).
+Roles are stored in `profiles.role`. The `user_role` enum still contains the legacy values
+(`admin`, `sales`, `stock_manager`, `logistics`, `warehouse`), but only **three are assignable**
+in the UI and only these change access:
 
-- **admin**: full access including user management, can delete cards
-- **sales**: can create and manage delivery cards
-- **stock_manager**: can view and update cards
-- **logistics**: can manage cards + drivers + couriers/cargo-companies (but not users admin panel)
-- **warehouse**: warehouse workflow role (used in order line status updates, Phase 4)
+- **admin**: full access including user management; restore/delete cards.
+- **logistics**: manage cards + drivers + couriers/cargo-companies (not the users panel).
+- **Staff** (stored as `sales`): create and manage delivery cards. This is the default for new users.
 
-New users are created as `sales` with `active=false`. Admins activate them via `/admin/users`.
+`stock_manager` and `warehouse` gated nothing and were **removed from the role picker**; existing
+such users were migrated to `sales`. Don't reintroduce them without real, enforced capabilities.
 
-Middleware also allows `logistics` role on `/admin/drivers`, `/admin/customers`, `/admin/settings`, `/admin/courier-companies`, `/admin/cargo-companies`.
+New users are created as `sales` with `active=false`; an admin activates them via `/admin/users`.
+On a new pending signup, a one-time LINE alert is sent to the team group (`api/auth/callback`,
+guarded by `profiles.pending_notified`).
+
+Middleware also allows `logistics` on `/admin/drivers`, `/admin/customers`, `/admin/settings`, `/admin/courier-companies`, `/admin/cargo-companies`.
 
 ## Supabase Client Selection
 
@@ -146,7 +151,7 @@ There is **one** record per delivery: a row in `delivery_cards`. The Planning Qu
 - **Planning Queue** (`/planning-queue`) lists `delivery_cards` where `status='draft'`, ordered by `sort_order` then `created_at`. "Add to Queue" creates a draft card via `POST /api/cards` (destination defaults to `'Unassigned'`). "To Board" promotes it (`PATCH /api/cards/[id]/status` → `pending_booking`). Reorder persists `sort_order` via `PATCH /api/cards/[id]`.
 - **Dashboard Draft panel** (`dashboard/page.tsx`) filters the same draft cards.
 - **Unload a customer** (`PATCH /api/customers/[id]` with `unload`) spins off a **new draft card** and reassigns the customer (sale orders + extra items follow via FK) — it no longer writes to the legacy `planning_queue` table.
-- **Deleting drafts:** `DELETE /api/cards/[id]` allows any active user to delete a `status='draft'` card (Planning Queue removal); deleting non-draft cards stays admin-only.
+- **Deleting cards (soft-delete):** `DELETE /api/cards/[id]` sets `deleted_at` (reversible) rather than hard-deleting; attachments are kept. Any active user may delete a `status='draft'` card (Planning Queue removal); non-draft deletes stay admin-only. **Every `delivery_cards` list read must filter `.is('deleted_at', null)`** (board, dashboard, archive, `/api/cards`, card-detail `activeCards`); single-card fetches stay unfiltered so a deleted card can still be opened/restored. **Restore** is admin-only via `PATCH /api/cards/[id] { deleted_at: null }`, surfaced as a "Deleted" tab in History (`/archive`).
 
 The legacy `planning_queue` table and its `/api/planning-queue` routes still exist but are **unused** (empty after the unification migration). Do not write new code against them.
 

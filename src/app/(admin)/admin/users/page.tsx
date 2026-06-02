@@ -18,11 +18,12 @@ interface PreApproved {
   created_at: string;
 }
 
+// Only roles that actually change access are offered. 'sales' is the generic staff role
+// (shown as "Staff"); stock_manager/warehouse were unused and are no longer assignable.
 const ROLE_OPTIONS = [
   { value: 'admin', label: 'Admin' },
-  { value: 'sales', label: 'Sales' },
-  { value: 'stock_manager', label: 'Stock Manager' },
   { value: 'logistics', label: 'Logistics' },
+  { value: 'sales', label: 'Staff' },
 ];
 
 export default function AdminUsersPage() {
