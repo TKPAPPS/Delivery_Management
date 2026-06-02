@@ -6,16 +6,18 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Badge from '@/components/ui/Badge';
 import Modal from '@/components/ui/Modal';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useToastStore } from '@/store/toastStore';
-import { MessageSquare, Plus, Edit, RefreshCw, Info } from 'lucide-react';
+import { MessageSquare, Plus, Edit, RefreshCw, Info, Trash2 } from 'lucide-react';
 
 const STATUS_TRIGGER_OPTIONS = [
-  { value: 'pending_booking', label: 'Pending Booking' },
-  { value: 'booked', label: 'Booked' },
-  { value: 'in_transit', label: 'In Transit' },
-  { value: 'delivered', label: 'Delivered' },
   { value: 'card_created', label: 'Card Created' },
   { value: 'urgent_card_created', label: 'Urgent Card Created' },
+  { value: 'pending_booking', label: 'Pending Booking' },
+  { value: 'booked', label: 'Booked' },
+  { value: 'driver_assigned', label: 'Driver Assigned' },
+  { value: 'in_transit', label: 'In Transit' },
+  { value: 'delivered', label: 'Delivered' },
 ];
 
 const EMPTY_FORM = { name: '', line_target_id: '', auto_triggers: [] as string[] };
@@ -28,18 +30,55 @@ export default function CommunicationsPage() {
   const [editItem, setEditItem] = useState<LineGroup | null>(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [masterEnabled, setMasterEnabled] = useState(true);
+  const [savingMaster, setSavingMaster] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<LineGroup | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetch_ = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/line-groups');
-      const data = await res.json();
-      setGroups(data.groups ?? []);
+      const [gRes, sRes] = await Promise.all([fetch('/api/line-groups'), fetch('/api/line-settings')]);
+      const gData = await gRes.json();
+      setGroups(gData.groups ?? []);
+      const sData = await sRes.json();
+      if (typeof sData.master_enabled === 'boolean') setMasterEnabled(sData.master_enabled);
     } catch { addToast('Failed to load', 'error'); }
     finally { setLoading(false); }
   };
 
   useEffect(() => { fetch_(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const toggleMaster = async () => {
+    const next = !masterEnabled;
+    setSavingMaster(true);
+    setMasterEnabled(next); // optimistic
+    try {
+      const res = await fetch('/api/line-settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ master_enabled: next }),
+      });
+      if (!res.ok) throw new Error();
+      addToast(next ? 'LINE notifications enabled' : 'LINE notifications muted', 'success');
+    } catch {
+      setMasterEnabled(!next); // revert
+      addToast('Failed to update LINE master switch', 'error');
+    } finally { setSavingMaster(false); }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/line-groups/${deleteTarget.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error();
+      setGroups((prev) => prev.filter((x) => x.id !== deleteTarget.id));
+      addToast('Group deleted', 'success');
+      setDeleteTarget(null);
+    } catch { addToast('Failed to delete group', 'error'); }
+    finally { setDeleting(false); }
+  };
 
   const openCreate = () => { setEditItem(null); setForm(EMPTY_FORM); setModalOpen(true); };
   const openEdit = (g: LineGroup) => {
@@ -107,11 +146,34 @@ export default function CommunicationsPage() {
       </div>
       <p className="text-xs text-slate-400 mb-6">Configure LINE groups for push notifications via LINE Messaging API.</p>
 
+      {/* Master switch */}
+      <div className={`rounded-xl border p-4 mb-4 flex items-center justify-between gap-4 ${masterEnabled ? 'bg-white border-slate-200' : 'bg-slate-50 border-slate-300'}`}>
+        <div>
+          <p className="font-semibold text-slate-900 text-sm">Automatic LINE notifications</p>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Master switch for automatic delivery notifications. When off, nothing is auto-sent
+            (LINE or its fallback email), regardless of group settings.
+          </p>
+        </div>
+        <label className="flex items-center gap-2 cursor-pointer flex-shrink-0">
+          <span className={`text-xs font-medium ${masterEnabled ? 'text-emerald-600' : 'text-slate-400'}`}>
+            {masterEnabled ? 'On' : 'Off'}
+          </span>
+          <input
+            type="checkbox"
+            checked={masterEnabled}
+            onChange={toggleMaster}
+            disabled={savingMaster}
+            className="h-5 w-5 rounded border-slate-300 text-crimson-600 cursor-pointer disabled:opacity-50"
+          />
+        </label>
+      </div>
+
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 flex items-start gap-2 text-xs text-amber-800">
         <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
         <div className="space-y-1">
-          <p><strong>LINE setup:</strong> Set <code>LINE_CHANNEL_ACCESS_TOKEN</code> in environment variables. The LINE Target ID below is the group or user ID obtained from LINE webhook events when your bot joins a group.</p>
-          <p><strong>Email:</strong> Set <code>RESEND_API_KEY</code>, <code>RESEND_FROM_EMAIL</code>, and <code>NOTIFICATION_EMAIL</code> in environment variables.</p>
+          <p><strong>How routing works:</strong> each event is sent only to <strong>active</strong> groups that have ticked it below. An event no active group subscribes to is not sent (and the master switch above mutes everything).</p>
+          <p><strong>Adding groups:</strong> invite the bot to a LINE group and it auto-appears here (via the <code>/api/line/webhook</code>), or add it manually with its Target ID. Token via <code>LINE_CHANNEL_ID</code>/<code>LINE_CHANNEL_SECRET</code> (or legacy <code>LINE_CHANNEL_ACCESS_TOKEN</code>).</p>
         </div>
       </div>
 
@@ -149,6 +211,7 @@ export default function CommunicationsPage() {
                   <div className="flex justify-end gap-2">
                     <Button size="sm" variant="ghost" onClick={() => openEdit(g)}><Edit className="w-3.5 h-3.5" /> Edit</Button>
                     <Button size="sm" variant="outline" onClick={() => toggleActive(g)}>{g.active ? 'Deactivate' : 'Activate'}</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(g)} className="text-red-600 hover:bg-red-50"><Trash2 className="w-3.5 h-3.5" /></Button>
                   </div>
                 </td>
               </tr>
@@ -162,6 +225,16 @@ export default function CommunicationsPage() {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+        title="Delete LINE group"
+        message={`Delete "${deleteTarget?.name ?? ''}"? This removes it from notification routing and cannot be undone.`}
+        confirmLabel="Delete"
+        loading={deleting}
+      />
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editItem ? 'Edit LINE Group' : 'Add LINE Group'} size="sm">
         <form onSubmit={handleSave} className="space-y-4">

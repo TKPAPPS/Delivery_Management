@@ -150,6 +150,13 @@ export interface DeliveryCustomer {
   updated_at: string;
 }
 
+export interface AppSetting {
+  key: string;
+  value: Record<string, unknown>;
+  updated_at: string;
+  updated_by: string | null;
+}
+
 export interface MessageTemplate {
   id: string;
   status: DeliveryStatus;
@@ -401,6 +408,12 @@ export type Database = {
         Row: PlanningQueueItem;
         Insert: Partial<Omit<PlanningQueueItem, 'id' | 'created_at'>> & Pick<PlanningQueueItem, 'customer_name'>;
         Update: Partial<PlanningQueueItem>;
+        Relationships: [];
+      };
+      app_settings: {
+        Row: AppSetting;
+        Insert: Pick<AppSetting, 'key'> & Partial<Omit<AppSetting, 'key'>>;
+        Update: Partial<AppSetting>;
         Relationships: [];
       };
     };

@@ -1,5 +1,6 @@
 import { createSupabaseAdminClient } from './supabase-server';
 import { pushLineMessage, NOTIFICATION_TRIGGER_MAP } from './line';
+import { getLineMasterEnabled } from './settings';
 
 export type NotificationType =
   | 'card_created'
@@ -60,7 +61,19 @@ export async function sendNotification(
     console.warn('[notifications] No LINE credentials or RESEND_API_KEY configured — notification skipped.');
   }
 
-  // Primary: LINE Messaging API. Route by per-group auto_triggers; fall back to the default target.
+  // Master kill switch — when off, mute the whole internal notification (no LINE, no fallback email).
+  const masterEnabled = await getLineMasterEnabled(supabase);
+  if (!masterEnabled) {
+    await supabase
+      .from('notification_events')
+      .update({ status: 'skipped', error: 'LINE notifications disabled (master switch)', processed_at: new Date().toISOString() })
+      .eq('id', event.id);
+    return;
+  }
+
+  // Primary: LINE Messaging API. Routing is driven entirely by per-group auto_triggers on ACTIVE
+  // groups — no hidden catch-all. An event no active group subscribes to is intentionally silent.
+  let lineFailed = false;
   if (lineConfigured) {
     const trigger = NOTIFICATION_TRIGGER_MAP[type];
     let targets: string[] = [];
@@ -69,6 +82,7 @@ export async function sendNotification(
       const { data: groups } = await supabase
         .from('line_groups')
         .select('line_target_id')
+        .eq('active', true)
         .contains('auto_triggers', [trigger])
         .not('line_target_id', 'is', null);
       targets = ((groups ?? []) as { line_target_id: string | null }[])
@@ -76,17 +90,12 @@ export async function sendNotification(
         .filter((id): id is string => !!id);
     }
 
-    // No group subscribes to this trigger → fall back to the single default target.
-    if (targets.length === 0 && process.env.LINE_DEFAULT_TARGET_ID) {
-      targets = [process.env.LINE_DEFAULT_TARGET_ID];
-    }
-
     if (targets.length === 0) {
-      console.warn('[notifications] LINE configured but no target (no matching group + no LINE_DEFAULT_TARGET_ID) — LINE skipped.');
+      // No active group subscribes → silent by design (status stays 'skipped', no email fallback).
+      console.warn(`[notifications] No active LINE group subscribes to '${trigger ?? type}' — skipped.`);
     } else {
       const errors: string[] = [];
       let anySent = false;
-      // De-dupe in case a subscribed group also equals the default target.
       for (const to of Array.from(new Set(targets))) {
         const r = await pushLineMessage(to, [{ type: 'text', text: message }]);
         if (r.ok) anySent = true;
@@ -96,13 +105,15 @@ export async function sendNotification(
         status = 'sent';
       } else {
         status = 'failed';
+        lineFailed = true;
         error = errors.join(' | ') || 'LINE send failed';
       }
     }
   }
 
-  // Fallback: Resend email (only if LINE did not succeed)
-  if (status !== 'sent' && resendKey) {
+  // Fallback email fires only when a LINE send was attempted and failed, OR when LINE isn't
+  // configured at all. A deliberately-silent event (no subscribed group) does NOT trigger email.
+  if ((lineFailed || !lineConfigured) && status !== 'sent' && resendKey) {
     if (!resendFrom) {
       console.warn('[notifications] RESEND_API_KEY set but RESEND_FROM_EMAIL missing — email skipped.');
     } else if (!resendTo) {

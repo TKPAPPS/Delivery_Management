@@ -118,4 +118,5 @@ export const NOTIFICATION_TRIGGER_MAP: Record<string, string> = {
   status_delivered: 'delivered',
   card_created: 'card_created',
   urgent_card_created: 'urgent_card_created',
+  driver_assigned: 'driver_assigned',
 };

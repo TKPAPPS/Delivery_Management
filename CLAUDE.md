@@ -189,7 +189,9 @@ Supabase Realtime is enabled on `delivery_cards` and `delivery_customers` (publi
 **Primary: LINE Messaging API** (all LINE I/O goes through `src/lib/line.ts`)
 - **Token:** `getLineToken()` prefers a **stateless token** minted on demand from `LINE_CHANNEL_ID` + `LINE_CHANNEL_SECRET` (`POST /oauth2/v3/token`, 15-min, cached ~14 min in module memory), and falls back to a long-lived `LINE_CHANNEL_ACCESS_TOKEN` if the ID/secret aren't set. Nothing set → returns null → LINE skipped.
 - **Send:** `pushLineMessage(to, messages)` → `POST /v2/bot/message/push`; retries once on 401 after re-minting. Never throws.
-- **Routing (auto_triggers):** for each notification, `sendNotification` looks up `line_groups` whose `auto_triggers` array contains the mapped trigger token (`NOTIFICATION_TRIGGER_MAP`: e.g. `status_booked`→`booked`) and pushes to every such group's `line_target_id`. If no group matches, it falls back to the single `LINE_DEFAULT_TARGET_ID`. `driver_assigned` has no trigger token → default target only.
+- **Master switch:** `getLineMasterEnabled()` (`src/lib/settings.ts`, `app_settings` key `line_master_enabled`, default true). When OFF, `sendNotification` logs the event `skipped` and sends **nothing** — no LINE, no fallback email. Toggled from the top of `/admin/communications` (`GET/PUT /api/line-settings`, PUT admin-only).
+- **Routing (auto_triggers):** when enabled, `sendNotification` pushes only to **active** `line_groups` whose `auto_triggers` contains the mapped trigger token (`NOTIFICATION_TRIGGER_MAP`, e.g. `status_booked`→`booked`; all 7 `NotificationType`s including `driver_assigned` are mapped). **An event no active group subscribes to is silent** — there is no hidden catch-all. (`LINE_DEFAULT_TARGET_ID` is no longer used by routing; the team group is a real `line_groups` row instead.)
+- **Fallback email** fires only when a LINE push was attempted and failed, or when LINE isn't configured at all — never for a deliberately-silent (unsubscribed) event.
 - Reminder: LINE cannot cold-message anyone — a user must friend the bot, or the bot must be in the group, before you ever get their ID. So LINE is for **internal team groups**; customer-facing messaging stays on email (see Customer Status Emails).
 
 **Fallback: Resend email**
@@ -208,7 +210,7 @@ Always inserts a `notification_events` row first and updates it with final statu
 2. Set `LINE_CHANNEL_SECRET` (Console → Basic settings). **Recommended:** also set `LINE_CHANNEL_ID` so the app auto-mints stateless tokens (no token to rotate). Otherwise issue a long-lived token and set `LINE_CHANNEL_ACCESS_TOKEN`.
 3. Register the webhook URL `https://<domain>/api/line/webhook` in the console (Messaging API tab) and click **Verify** (expects 200). The route verifies the `X-Line-Signature` HMAC using `LINE_CHANNEL_SECRET`.
 4. Invite the bot to each internal group chat → the webhook **auto-records** the group's target ID into `line_groups` (no manual copying).
-5. In `/admin/communications`, tick which `auto_triggers` each group should receive, and optionally set `LINE_DEFAULT_TARGET_ID` as the catch-all for triggers no group subscribes to.
+5. In `/admin/communications`, add/confirm each group and tick which events it should receive. The master switch at the top mutes all automatic LINE messages when off.
 
 The `line_groups` table holds per-group target IDs and auto-trigger configuration. The token is global (minted from / read from env), not per-group.
 
@@ -221,19 +223,19 @@ A "group" is one row in `line_groups`: `name`, `line_target_id` (the LINE group/
 **Two ways a message reaches a group:**
 
 1. **Automatic** (status changes + card creation) — `sendNotification(type, …)` in `src/lib/notifications.ts`:
-   - The event `type` is mapped to a trigger key via `NOTIFICATION_TRIGGER_MAP` (`status_booked`→`booked`, `status_in_transit`→`in_transit`, `status_delivered`→`delivered`, `status_pending_booking`→`pending_booking`, `card_created`→`card_created`, `urgent_card_created`→`urgent_card_created`). `driver_assigned` has **no** key.
-   - It selects every `line_groups` row whose `auto_triggers` **contains that key** (and has a non-null `line_target_id`) and pushes to each.
-   - If **no** group subscribes, it falls back to the single `LINE_DEFAULT_TARGET_ID` env var. If that's also empty → logged `skipped`, nothing sent.
-   - Result is recorded as one `notification_events` row (`sent` if any group succeeded, else `failed`/`skipped`).
+   - **Master switch** (top of `/admin/communications`) — if off, the event is logged `skipped` and nothing is sent (no LINE, no fallback email). Stored in `app_settings.line_master_enabled` (default on).
+   - The event `type` is mapped to a trigger key via `NOTIFICATION_TRIGGER_MAP` (all 7 `NotificationType`s, e.g. `status_booked`→`booked`, `driver_assigned`→`driver_assigned`).
+   - It selects every **active** `line_groups` row whose `auto_triggers` **contains that key** (with a non-null `line_target_id`) and pushes to each.
+   - **No active group subscribes → nothing sent** (silent by design; logged `skipped`). There is no env catch-all.
+   - Result is recorded as one `notification_events` row (`sent` if any group succeeded, `failed` if all pushes failed, else `skipped`).
 2. **Manual** (from a card's `CommunicationPanel`) — `POST /api/communications` with `channel:'line'`: sends to the chosen group's `line_target_id`, or `LINE_DEFAULT_TARGET_ID` if none chosen. Logged to `communication_events`.
 
-**The levers to change behaviour:**
-- **Route an event to a group:** in `/admin/communications`, tick that event on the group. Untick to stop. (No code change, no redeploy.)
-- **Add a group:** invite the bot to the LINE group → the webhook auto-creates the row; or add a row manually and paste its `line_target_id`. Then tick triggers.
-- **Stop a group receiving auto-messages:** untick all its triggers, or delete the row. NOTE: auto-routing does **not** currently filter on the `active` column, so toggling `active` alone won't stop sends — clear the triggers or remove the row.
-- **Change the catch-all:** edit `LINE_DEFAULT_TARGET_ID` in Vercel env (used only when no group subscribes to an event) → redeploy.
-- **Change the message wording:** edit `buildMessage()` in `src/lib/notifications.ts` (automatic copy) — distinct from the customer **email** templates in the `message_templates` table.
-- **Add routing for `driver_assigned`:** it has no trigger key today (default target only); add one to `NOTIFICATION_TRIGGER_MAP` + the admin trigger options to make it group-routable.
+**The levers to change behaviour (all on `/admin/communications`, no redeploy):**
+- **Mute everything instantly:** flip the master switch off.
+- **Route an event to a group:** tick that event on the group. Untick to stop.
+- **Pause a group:** Deactivate it (routing skips inactive groups), or Delete it.
+- **Add a group:** invite the bot to the LINE group → the webhook auto-creates the row; or Add it manually with its target ID. Then tick triggers.
+- **Change the message wording:** edit `buildMessage()` in `src/lib/notifications.ts` — distinct from the customer **email** templates in `message_templates`.
 
 ## Communications (manual sends from card detail)
 
@@ -300,7 +302,7 @@ Files are uploaded to Supabase Storage bucket `delivery-attachments`. Path forma
 | `LINE_CHANNEL_ID` | LINE channel ID — set to auto-mint stateless tokens (preferred) | Optional |
 | `LINE_CHANNEL_SECRET` | LINE channel secret — mints stateless tokens **and** verifies webhook signatures | Optional |
 | `LINE_CHANNEL_ACCESS_TOKEN` | Long-lived LINE token — fallback used only if `LINE_CHANNEL_ID`/`SECRET` aren't set | Optional |
-| `LINE_DEFAULT_TARGET_ID` | Default LINE group/user ID for triggers no group subscribes to | Optional |
+| `LINE_DEFAULT_TARGET_ID` | Fallback target for **manual** sends with no group chosen. No longer used by automatic routing (which is per active group). | Optional |
 | `RESEND_API_KEY` | Resend email API key | Optional |
 | `RESEND_FROM_EMAIL` | Verified sender address for emails — **must be a domain verified in Resend** | Optional |
 | `NOTIFICATION_EMAIL` | Recipient for system notification emails | Optional |
