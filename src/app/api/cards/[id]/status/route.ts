@@ -48,6 +48,28 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   await logActivity(params.id, user.id, ACTIONS.STATUS_CHANGED, { from: existing.status, to: status });
 
+  // On delivery, close out any linked orders so they leave the active Orders Pool.
+  // Local DB write only — the Odoo client is read-only and is never called here (no write-back).
+  if (status === 'delivered') {
+    const { data: linkedOrders } = await admin
+      .from('orders')
+      .select('id, status')
+      .eq('delivery_card_id', params.id)
+      .is('deleted_at', null);
+    for (const o of linkedOrders ?? []) {
+      if (o.status !== 'completed' && o.status !== 'cancelled') {
+        await admin.from('orders').update({ status: 'completed' }).eq('id', o.id);
+        await logActivity(
+          null,
+          user.id,
+          ACTIONS.ORDER_UPDATED,
+          { from: o.status, to: 'completed', reason: 'delivery_completed' },
+          { entity_type: 'order', entity_id: o.id }
+        );
+      }
+    }
+  }
+
   const notifMap: Partial<Record<DeliveryStatus, NotificationType>> = {
     pending_booking: 'status_pending_booking',
     booked: 'status_booked',

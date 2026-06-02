@@ -128,7 +128,12 @@ export default function CreateCardModal({ open, onClose, onCreated }: CreateCard
         <Select
           label="Delivery Method"
           value={form.delivery_method}
-          onChange={(e) => setForm((f) => ({ ...f, delivery_method: e.target.value }))}
+          onChange={(e) => setForm((f) => ({
+            ...f,
+            delivery_method: e.target.value,
+            // Delivery Type (motorcycle) only applies to the "other" method — clear it otherwise.
+            delivery_type: e.target.value === 'other' ? f.delivery_type : '',
+          }))}
           options={[
             { value: 'car', label: 'Car / Truck' },
             { value: 'post', label: 'Post / Courier' },
@@ -136,16 +141,18 @@ export default function CreateCardModal({ open, onClose, onCreated }: CreateCard
             { value: 'other', label: 'Other' },
           ]}
         />
-        <Select
-          label="Delivery Type"
-          value={form.delivery_type}
-          onChange={(e) => setForm((f) => ({ ...f, delivery_type: e.target.value }))}
-          options={[
-            { value: '', label: '— Not specified —' },
-            { value: 'our_motorcycle', label: 'Our motorcycle' },
-            { value: 'company_motorcycle', label: 'Delivery company motorcycle' },
-          ]}
-        />
+        {form.delivery_method === 'other' && (
+          <Select
+            label="Delivery Type"
+            value={form.delivery_type}
+            onChange={(e) => setForm((f) => ({ ...f, delivery_type: e.target.value }))}
+            options={[
+              { value: '', label: '— Not specified —' },
+              { value: 'our_motorcycle', label: 'Our motorcycle' },
+              { value: 'company_motorcycle', label: 'Delivery company motorcycle' },
+            ]}
+          />
+        )}
         <div className="grid grid-cols-2 gap-4">
           <Select
             label="Status"

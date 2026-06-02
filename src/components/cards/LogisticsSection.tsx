@@ -98,7 +98,9 @@ export default function LogisticsSection({ card, drivers, onUpdated }: Logistics
     try {
       const payload: Partial<DeliveryCard> = {
         delivery_method: form.delivery_method as DeliveryMethod,
-        delivery_type: (form.delivery_type || null) as DeliveryType | null,
+        // Delivery Type (motorcycle) only applies to the "other" method. Force-clear it for
+        // any other method so a stale value (e.g. legacy data) can't persist on a Car/Truck card.
+        delivery_type: (form.delivery_method === 'other' ? form.delivery_type || null : null) as DeliveryType | null,
         driver_id: form.driver_id || null,
         driver_name_manual: form.driver_name_manual || null,
         driver_phone_manual: form.driver_phone_manual || null,
@@ -122,8 +124,18 @@ export default function LogisticsSection({ card, drivers, onUpdated }: Logistics
         body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error('Failed to save');
-      onUpdated(payload);
-      addToast('Logistics details saved', 'success');
+      const data = await res.json().catch(() => null);
+      // Assigning a driver may auto-advance the card to "booked" server-side — reflect it.
+      const updated: Partial<DeliveryCard> =
+        data?.card?.status && data.card.status !== card.status
+          ? { ...payload, status: data.card.status }
+          : payload;
+      onUpdated(updated);
+      if (updated.status && updated.status !== card.status) {
+        addToast('Driver assigned — card moved to Booked', 'success');
+      } else {
+        addToast('Logistics details saved', 'success');
+      }
       setEditing(false);
     } catch {
       addToast('Failed to save logistics details', 'error');
@@ -150,7 +162,7 @@ export default function LogisticsSection({ card, drivers, onUpdated }: Logistics
           <MethodIcon className="w-4 h-4 text-slate-500" />
           <h3 className="font-semibold text-slate-900 text-sm">
             Logistics — <span className="text-slate-500 font-normal">{METHOD_LABELS[method]}</span>
-            {card.delivery_type && (
+            {method === 'other' && card.delivery_type && (
               <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-gold-50 text-gold-700 border border-gold-200">
                 {DELIVERY_TYPE_LABELS[card.delivery_type]}
               </span>
@@ -285,7 +297,12 @@ function EditForm({ form, setForm, drivers, courierCompanies, cargoCompanies }: 
       <Select
         label="Delivery Method"
         value={form.delivery_method}
-        onChange={f('delivery_method')}
+        onChange={(e) => setForm((prev) => ({
+          ...prev,
+          delivery_method: e.target.value,
+          // Delivery Type (motorcycle) only applies to the "other" method — clear it otherwise.
+          delivery_type: e.target.value === 'other' ? prev.delivery_type : '',
+        }))}
         options={[
           { value: 'car', label: 'Car / Truck' },
           { value: 'post', label: 'Post / Courier' },
@@ -294,16 +311,18 @@ function EditForm({ form, setForm, drivers, courierCompanies, cargoCompanies }: 
         ]}
       />
 
-      <Select
-        label="Delivery Type"
-        value={form.delivery_type}
-        onChange={f('delivery_type')}
-        options={[
-          { value: '', label: '— Not specified —' },
-          { value: 'our_motorcycle', label: 'Our motorcycle' },
-          { value: 'company_motorcycle', label: 'Delivery company motorcycle' },
-        ]}
-      />
+      {method === 'other' && (
+        <Select
+          label="Delivery Type"
+          value={form.delivery_type}
+          onChange={f('delivery_type')}
+          options={[
+            { value: '', label: '— Not specified —' },
+            { value: 'our_motorcycle', label: 'Our motorcycle' },
+            { value: 'company_motorcycle', label: 'Delivery company motorcycle' },
+          ]}
+        />
+      )}
 
       {method === 'car' && (
         <>

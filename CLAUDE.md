@@ -11,7 +11,7 @@ An internal logistics delivery coordination tool for **The Kosher Place (TKP)** 
 The app exists to turn sales demand into coordinated, tracked deliveries with one consistent picture for the whole team. Concretely:
 
 1. **Single source of truth per delivery** — one `delivery_cards` row; Planning Queue, Dashboard Draft, and the board's Draft column are all views of the same draft rows. No duplicate/unsynced copies.
-2. **Clear lifecycle** — `draft → pending_booking → booked → in_transit → delivered` on a drag-and-drop Kanban board, with an immutable activity log.
+2. **Clear lifecycle** — `draft → pending_booking → booked → in_transit → delivered` on a drag-and-drop Kanban board, with an immutable activity log. Assigning a driver to a `draft`/`pending_booking` card **auto-advances it to `booked`** (server-side in `PATCH /api/cards/[id]`; never downgrades a card already `booked`/`in_transit`/`delivered`). Marking a card `delivered` is the "Done" action — it sends the delivered customer email, drops the card off the board into History, and **completes any linked order** (see Order → Delivery bridge).
 3. **Per-delivery logistics** — multiple customers (each with sale orders + extra items), delivery method (car/post/air/other), delivery type (our motorcycle vs delivery-company motorcycle), driver/courier/cargo assignment, attachments, comments.
 4. **Real-time sync** — status/driver/type/movement changes propagate live across sections via Supabase Realtime.
 5. **Automatic customer emails** — admin-authored, status-based email templates auto-sent to opted-in customers (email only, logged, non-blocking).
@@ -21,6 +21,8 @@ The app exists to turn sales demand into coordinated, tracked deliveries with on
 ### Order → Delivery bridge
 
 Orders are turned into deliveries via **`POST /api/deliveries/from-orders`** `{ order_ids: string[] }`: it creates one **draft** `delivery_card`, one `delivery_customer` per order (name/email pulled from the linked Customer Directory entry), maps distinct `sale_order_number`s → `customer_sale_orders` and each order line → `extra_delivery_items`, then marks each order `status='assigned'` and sets `orders.delivery_card_id` (FK, `on delete set null`). UI: "Create Delivery" on the order detail page, and multi-select → "Create Delivery" on the Orders Pool (merges several orders into one card, each as a customer). The Orders Pool defaults to an **"Active (unassigned)"** view that hides assigned/completed/cancelled; assigned rows link to their card. Partial/qty-based fulfillment is out of scope (warehouse Phase 4).
+
+When a card is marked `delivered` (`PATCH /api/cards/[id]/status`), any linked orders (`orders.delivery_card_id`, non-deleted) that aren't already `completed`/`cancelled` are set to `status='completed'` so they leave the active Orders Pool. This is a **local DB write only** — `src/lib/odoo.ts` is never called, preserving the no-write-back-to-Odoo guarantee.
 
 ## Commands
 
@@ -151,6 +153,8 @@ The legacy `planning_queue` table and its `/api/planning-queue` routes still exi
 ## Delivery Type
 
 `delivery_cards.delivery_type` (`'our_motorcycle' | 'company_motorcycle' | null`) is a **separate field** from `delivery_method` (`car/post/air/other`). Selectable in `CreateCardModal` and `LogisticsSection`; shown as a chip in the logistics header. Validated server-side in `POST /api/cards`; passes through the `PATCH /api/cards/[id]` body.
+
+**Only applies to `delivery_method === 'other'`.** The motorcycle Delivery Type is nonsensical for car/post/air, so the selector is hidden for those methods in both `CreateCardModal` and `LogisticsSection`; changing the method away from `other` clears `delivery_type` in form state, and `LogisticsSection.save()` force-nulls `delivery_type` whenever the method isn't `other` (so a stale legacy value can't persist on a Car/Truck card). The header chip also only renders when `method === 'other'`.
 
 ## Customer Status Emails (template-driven, email only)
 

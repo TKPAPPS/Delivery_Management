@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser, createSupabaseAdminClient } from '@/lib/supabase-server';
 import { logActivity, ACTIONS } from '@/lib/activity';
 import { sendNotification } from '@/lib/notifications';
+import { sendStatusCustomerEmails } from '@/lib/customer-messages';
 import { parseBody } from '@/lib/parse-body';
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
@@ -99,6 +100,27 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         destination: existing.destination,
         driverName: driverName ?? 'Unknown',
       });
+
+      // Auto-advance to "booked" once a driver is assigned, but only from the
+      // pre-booking stages — never downgrade a card already booked/in transit/delivered.
+      if (existing.status === 'draft' || existing.status === 'pending_booking') {
+        const { error: statusErr } = await admin
+          .from('delivery_cards')
+          .update({ status: 'booked' })
+          .eq('id', params.id);
+        if (!statusErr) {
+          card.status = 'booked';
+          await logActivity(params.id, user.id, ACTIONS.STATUS_CHANGED, {
+            from: existing.status, to: 'booked', reason: 'driver_assigned',
+          });
+          void sendNotification('status_booked', params.id, {
+            deliveryRef: existing.delivery_ref,
+            destination: existing.destination,
+            plannedDate: existing.planned_date ?? undefined,
+          });
+          void sendStatusCustomerEmails(params.id, 'booked');
+        }
+      }
     }
   } else {
     await logActivity(params.id, user.id, ACTIONS.CARD_UPDATED, { changes: Object.keys(updateData) });
