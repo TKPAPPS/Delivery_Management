@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser, createSupabaseAdminClient } from '@/lib/supabase-server';
 import { parseBody } from '@/lib/parse-body';
+import { pushLineMessage } from '@/lib/line';
 
 export async function GET(req: NextRequest) {
   const ctx = await getSessionUser();
@@ -60,7 +61,6 @@ export async function POST(req: NextRequest) {
   let error: string | null = null;
 
   if (channel === 'line') {
-    const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
     let targetId: string | null = null;
 
     if (line_group_id) {
@@ -74,36 +74,13 @@ export async function POST(req: NextRequest) {
       targetId = process.env.LINE_DEFAULT_TARGET_ID ?? null;
     }
 
-    if (!token) {
-      error = 'LINE_CHANNEL_ACCESS_TOKEN not configured';
-      status = 'skipped';
-    } else if (!targetId) {
+    if (!targetId) {
       error = 'No LINE target ID configured for this group';
       status = 'skipped';
     } else {
-      try {
-        const res = await fetch('https://api.line.me/v2/bot/message/push', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            to: targetId,
-            messages: [{ type: 'text', text: messageBody ?? '' }],
-          }),
-        });
-        if (res.ok) {
-          status = 'sent';
-        } else {
-          const body = await res.json().catch(() => ({})) as { message?: string };
-          error = `LINE API error: ${res.status}${body.message ? ` — ${body.message}` : ''}`;
-          status = 'failed';
-        }
-      } catch (err) {
-        status = 'failed';
-        error = err instanceof Error ? err.message : String(err);
-      }
+      const r = await pushLineMessage(targetId, [{ type: 'text', text: messageBody ?? '' }]);
+      status = r.status;
+      error = r.error;
     }
   } else if (channel === 'email') {
     const apiKey = process.env.RESEND_API_KEY;

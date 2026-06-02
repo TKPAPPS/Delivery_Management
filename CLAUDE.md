@@ -186,10 +186,11 @@ Supabase Realtime is enabled on `delivery_cards` and `delivery_customers` (publi
 
 `src/lib/notifications.ts` sends automatic notifications on status changes and card creation.
 
-**Primary: LINE Messaging API**
-- Requires `LINE_CHANNEL_ACCESS_TOKEN` (bot channel token) and `LINE_DEFAULT_TARGET_ID` (LINE group or user ID)
-- Sends via `POST https://api.line.me/v2/bot/message/push`
-- If token is set but target ID is missing → `console.warn`, skip LINE
+**Primary: LINE Messaging API** (all LINE I/O goes through `src/lib/line.ts`)
+- **Token:** `getLineToken()` prefers a **stateless token** minted on demand from `LINE_CHANNEL_ID` + `LINE_CHANNEL_SECRET` (`POST /oauth2/v3/token`, 15-min, cached ~14 min in module memory), and falls back to a long-lived `LINE_CHANNEL_ACCESS_TOKEN` if the ID/secret aren't set. Nothing set → returns null → LINE skipped.
+- **Send:** `pushLineMessage(to, messages)` → `POST /v2/bot/message/push`; retries once on 401 after re-minting. Never throws.
+- **Routing (auto_triggers):** for each notification, `sendNotification` looks up `line_groups` whose `auto_triggers` array contains the mapped trigger token (`NOTIFICATION_TRIGGER_MAP`: e.g. `status_booked`→`booked`) and pushes to every such group's `line_target_id`. If no group matches, it falls back to the single `LINE_DEFAULT_TARGET_ID`. `driver_assigned` has no trigger token → default target only.
+- Reminder: LINE cannot cold-message anyone — a user must friend the bot, or the bot must be in the group, before you ever get their ID. So LINE is for **internal team groups**; customer-facing messaging stays on email (see Customer Status Emails).
 
 **Fallback: Resend email**
 - Runs when LINE did not succeed (failed or not configured)
@@ -204,22 +205,20 @@ Always inserts a `notification_events` row first and updates it with final statu
 ### LINE Messaging API setup
 
 1. Create a LINE Official Account and enable the Messaging API channel in [LINE Developers Console](https://developers.line.biz/)
-2. Issue a long-lived channel access token
-3. Set `LINE_CHANNEL_ACCESS_TOKEN` env var
-4. Invite the bot to each internal group chat
-5. Implement a webhook endpoint to receive the `join` event and capture the `groupId`
-6. Store group IDs in the `line_groups.line_target_id` column (see `/admin/communications`)
-7. Set `LINE_DEFAULT_TARGET_ID` to the default group ID for system notifications
+2. Set `LINE_CHANNEL_SECRET` (Console → Basic settings). **Recommended:** also set `LINE_CHANNEL_ID` so the app auto-mints stateless tokens (no token to rotate). Otherwise issue a long-lived token and set `LINE_CHANNEL_ACCESS_TOKEN`.
+3. Register the webhook URL `https://<domain>/api/line/webhook` in the console (Messaging API tab) and click **Verify** (expects 200). The route verifies the `X-Line-Signature` HMAC using `LINE_CHANNEL_SECRET`.
+4. Invite the bot to each internal group chat → the webhook **auto-records** the group's target ID into `line_groups` (no manual copying).
+5. In `/admin/communications`, tick which `auto_triggers` each group should receive, and optionally set `LINE_DEFAULT_TARGET_ID` as the catch-all for triggers no group subscribes to.
 
-The `line_groups` table holds per-group target IDs and auto-trigger configuration. The channel access token is global (env var), not per-group.
+The `line_groups` table holds per-group target IDs and auto-trigger configuration. The token is global (minted from / read from env), not per-group.
 
-**Note:** LINE Notify (notify-api.line.me) was shut down March 31, 2025. Do not use it.
+**Note:** LINE Notify (notify-api.line.me) was shut down March 31, 2025. Do not use it. (`.env.local.example` still lists `LINE_NOTIFY_TOKEN` and is stale — ignore it; use the `LINE_CHANNEL_*` vars above.)
 
 ## Communications (manual sends from card detail)
 
 `src/app/api/communications/route.ts` handles manual LINE and email sends from `CommunicationPanel`.
 
-- LINE: uses `LINE_CHANNEL_ACCESS_TOKEN` + per-group `line_target_id` from DB (or `LINE_DEFAULT_TARGET_ID`)
+- LINE: `pushLineMessage()` (from `src/lib/line.ts`) + per-group `line_target_id` from DB (or `LINE_DEFAULT_TARGET_ID`)
 - Email: uses `RESEND_API_KEY` + `RESEND_FROM_EMAIL`; recipient is entered by the user
 - Email Summary: `POST /api/cards/[id]/send-summary` — fetches full card data, generates 24-hour signed attachment links, sends via Resend
 - All sends logged to `communication_events` table with sent/failed/skipped status
@@ -277,8 +276,10 @@ Files are uploaded to Supabase Storage bucket `delivery-attachments`. Path forma
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/public key (safe for client) | Yes |
 | `SUPABASE_SERVICE_ROLE_KEY` | Service role key — server-only, bypasses RLS | Yes |
 | `NEXT_PUBLIC_SITE_URL` | App base URL for OAuth redirect | Yes |
-| `LINE_CHANNEL_ACCESS_TOKEN` | LINE Messaging API channel access token | Optional |
-| `LINE_DEFAULT_TARGET_ID` | Default LINE group/user ID for system notifications | Optional |
+| `LINE_CHANNEL_ID` | LINE channel ID — set to auto-mint stateless tokens (preferred) | Optional |
+| `LINE_CHANNEL_SECRET` | LINE channel secret — mints stateless tokens **and** verifies webhook signatures | Optional |
+| `LINE_CHANNEL_ACCESS_TOKEN` | Long-lived LINE token — fallback used only if `LINE_CHANNEL_ID`/`SECRET` aren't set | Optional |
+| `LINE_DEFAULT_TARGET_ID` | Default LINE group/user ID for triggers no group subscribes to | Optional |
 | `RESEND_API_KEY` | Resend email API key | Optional |
 | `RESEND_FROM_EMAIL` | Verified sender address for emails — **must be a domain verified in Resend** | Optional |
 | `NOTIFICATION_EMAIL` | Recipient for system notification emails | Optional |
