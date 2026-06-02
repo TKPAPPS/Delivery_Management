@@ -214,6 +214,27 @@ The `line_groups` table holds per-group target IDs and auto-trigger configuratio
 
 **Note:** LINE Notify (notify-api.line.me) was shut down March 31, 2025. Do not use it. (`.env.local.example` still lists `LINE_NOTIFY_TOKEN` and is stale — ignore it; use the `LINE_CHANNEL_*` vars above.)
 
+### How group messages work (and how to change them)
+
+A "group" is one row in `line_groups`: `name`, `line_target_id` (the LINE group/room ID — what the bot actually pushes to), and `auto_triggers` (a text array of event keys). Managed at **`/admin/communications`** (admin only).
+
+**Two ways a message reaches a group:**
+
+1. **Automatic** (status changes + card creation) — `sendNotification(type, …)` in `src/lib/notifications.ts`:
+   - The event `type` is mapped to a trigger key via `NOTIFICATION_TRIGGER_MAP` (`status_booked`→`booked`, `status_in_transit`→`in_transit`, `status_delivered`→`delivered`, `status_pending_booking`→`pending_booking`, `card_created`→`card_created`, `urgent_card_created`→`urgent_card_created`). `driver_assigned` has **no** key.
+   - It selects every `line_groups` row whose `auto_triggers` **contains that key** (and has a non-null `line_target_id`) and pushes to each.
+   - If **no** group subscribes, it falls back to the single `LINE_DEFAULT_TARGET_ID` env var. If that's also empty → logged `skipped`, nothing sent.
+   - Result is recorded as one `notification_events` row (`sent` if any group succeeded, else `failed`/`skipped`).
+2. **Manual** (from a card's `CommunicationPanel`) — `POST /api/communications` with `channel:'line'`: sends to the chosen group's `line_target_id`, or `LINE_DEFAULT_TARGET_ID` if none chosen. Logged to `communication_events`.
+
+**The levers to change behaviour:**
+- **Route an event to a group:** in `/admin/communications`, tick that event on the group. Untick to stop. (No code change, no redeploy.)
+- **Add a group:** invite the bot to the LINE group → the webhook auto-creates the row; or add a row manually and paste its `line_target_id`. Then tick triggers.
+- **Stop a group receiving auto-messages:** untick all its triggers, or delete the row. NOTE: auto-routing does **not** currently filter on the `active` column, so toggling `active` alone won't stop sends — clear the triggers or remove the row.
+- **Change the catch-all:** edit `LINE_DEFAULT_TARGET_ID` in Vercel env (used only when no group subscribes to an event) → redeploy.
+- **Change the message wording:** edit `buildMessage()` in `src/lib/notifications.ts` (automatic copy) — distinct from the customer **email** templates in the `message_templates` table.
+- **Add routing for `driver_assigned`:** it has no trigger key today (default target only); add one to `NOTIFICATION_TRIGGER_MAP` + the admin trigger options to make it group-routable.
+
 ## Communications (manual sends from card detail)
 
 `src/app/api/communications/route.ts` handles manual LINE and email sends from `CommunicationPanel`.
