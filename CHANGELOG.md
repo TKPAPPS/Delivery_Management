@@ -6,6 +6,12 @@ All notable changes to this project are documented here. Dates are YYYY-MM-DD.
 
 ### Security & copy fixes (post-audit must-fix)
 
+- **Enabled RLS on `pre_approved_emails`** (privilege-escalation fix). The table was reachable via
+  the public anon key with RLS off, and the `handle_new_user()` signup trigger reads it to
+  auto-activate signups and assign their role - so an attacker could insert their own email with
+  `role='admin'`, sign up, and be auto-promoted. Verified pre-fix anon could read 2 admin rows;
+  post-fix anon read returns empty and insert is rejected (403). App/admin access (service role) and
+  the SECURITY DEFINER trigger are unaffected.
 - **Enabled RLS on `app_settings`** (it was the only public table without it). The table is reachable
   via the public anon key through PostgREST, so without RLS anyone could read/write settings and flip
   the LINE master switch, bypassing the admin-only API. RLS is now on with no policies — the
