@@ -132,8 +132,8 @@ export default function AdminUsersPage() {
       ) : (
         <div className="space-y-6">
           {/* Active / registered users */}
-          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto">
+            <table className="w-full text-sm min-w-[560px]">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
                   <th className="text-left px-4 py-3 font-semibold text-slate-600">User</th>
@@ -191,8 +191,8 @@ export default function AdminUsersPage() {
                 <Clock className="w-4 h-4 text-slate-400" />
                 <h2 className="text-sm font-semibold text-slate-600">Pre-approved — awaiting first sign-in</h2>
               </div>
-              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-                <table className="w-full text-sm">
+              <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto">
+                <table className="w-full text-sm min-w-[480px]">
                   <thead className="bg-slate-50 border-b border-slate-200">
                     <tr>
                       <th className="text-left px-4 py-3 font-semibold text-slate-600">Email</th>

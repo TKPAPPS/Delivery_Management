@@ -26,7 +26,7 @@ const adminNav = [
   { href: '/admin/communications', label: 'Communications', icon: MessageSquare },
   { href: '/admin/message-templates', label: 'Msg Templates', icon: Mail },
   { href: '/admin/odoo-sync', label: 'Odoo Sync', icon: RefreshCw },
-  { href: '/admin/settings', label: 'Settings', icon: Settings },
+  { href: '/admin/settings', label: 'Destinations', icon: Settings },
 ];
 
 export default function Sidebar({ role, onNavClick }: SidebarProps) {

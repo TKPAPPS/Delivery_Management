@@ -69,7 +69,8 @@ export async function POST(req: NextRequest) {
         }));
 
       if (rows.length > 0) {
-        await admin.from('line_groups').insert(rows);
+        // Upsert against the unique target index so a race / repeat join can't create duplicates.
+        await admin.from('line_groups').upsert(rows, { onConflict: 'line_target_id', ignoreDuplicates: true });
       }
     }
   } catch (err) {

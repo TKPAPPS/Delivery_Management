@@ -142,7 +142,7 @@ Common action constants are exported from `ACTIONS` in `src/lib/activity.ts`. Fo
 
 All app types live in `src/types/index.ts`. The `Database` type is manually maintained (not Supabase-generated) — update it when schema changes. Composite types like `DeliveryCardFull`, `DeliveryCardWithCustomers`, `OrderWithLines`, `OrderListItem` are defined there too.
 
-> **Schema drift warning:** `supabase/schema.sql` is the original base and is **stale** — it predates the status enum rename (`draft/pending_booking/booked/in_transit/delivered`), the `delivery_method` column, and later migrations. The live DB is the source of truth. **Query the live database before writing any migration** (project ref `jcfxuilzylsfxfsbinak`, "Delivery Management Tkp"). Some live column names also differ from `src/types/index.ts` (e.g. live `courier_company_name`/`mawb_number`/`cargo_etd` vs the type's `courier_name`/`mawb`/`etd`) — `LogisticsSection` post/air/other saves are affected by this latent mismatch; don't assume the types match the DB for those fields.
+> **Schema drift warning:** `supabase/schema.sql` is the original base and is **stale** — it predates the status enum rename (`draft/pending_booking/booked/in_transit/delivered`), the `delivery_method` column, and later migrations. The live DB is the source of truth. **Query the live database before writing any migration** (project ref `jcfxuilzylsfxfsbinak`, "Delivery Management Tkp"). When adding columns, regenerate types to check for drift (`supabase gen types typescript` or the Supabase `generate_typescript_types` MCP tool) and reconcile `src/types/index.ts`. As of 2026-06-02 the manual `Database` type and `delivery_cards` logistics columns (`courier_company_name`/`mawb_number`/`cargo_etd`/…) were verified to **match** the live schema — the earlier `courier_name`/`mawb`/`etd` drift note no longer applies.
 
 ## Cross-Section Sync (single source of truth)
 
@@ -256,7 +256,7 @@ A "group" is one row in `line_groups`: `name`, `line_target_id` (the LINE group/
 
 Cards support four delivery methods (`delivery_method` column, enum `delivery_method_type`):
 - **car** — driver from roster or manual entry; fields: `driver_id`, `driver_name_manual`, etc.
-- **post** — courier company + tracking number; fields: `courier_name`, `tracking_number`
+- **post** — courier company + tracking number; fields: `courier_company_name`, `tracking_number`
 - **air** — cargo company + air waybills; fields: `cargo_company_name`, `mawb`, `hawb`, `flight_number`, `etd`, `eta`
 - **other** — free-form; fields: `other_method_name`, `other_reference`
 

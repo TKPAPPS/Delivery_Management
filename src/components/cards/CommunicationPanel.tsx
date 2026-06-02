@@ -229,7 +229,7 @@ export default function CommunicationPanel({ card, customers }: CommunicationPan
               value={lineForm.group_id}
               onChange={(e) => setLineForm(f => ({ ...f, group_id: e.target.value }))}
               options={[
-                { value: '', label: '— Default (LINE_DEFAULT_TARGET_ID) —' },
+                { value: '', label: '— Default group —' },
                 ...lineGroups.filter(g => g.active).map(g => ({ value: g.id, label: g.name })),
               ]}
             />
@@ -244,7 +244,7 @@ export default function CommunicationPanel({ card, customers }: CommunicationPan
             />
           </div>
           <p className="text-xs text-slate-400">
-            {lineGroups.length === 0 && 'No LINE groups configured — message will use LINE_DEFAULT_TARGET_ID env var.'}
+            {lineGroups.length === 0 && 'No LINE groups configured — message goes to the default group.'}
           </p>
         </div>
         <div className="flex gap-3 justify-end mt-4">
@@ -286,7 +286,7 @@ export default function CommunicationPanel({ card, customers }: CommunicationPan
               className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-crimson-500 resize-none"
             />
           </div>
-          <p className="text-xs text-slate-400">Requires RESEND_API_KEY and RESEND_FROM_EMAIL env vars.</p>
+          <p className="text-xs text-slate-400">Email must be configured by an admin to send.</p>
         </div>
         <div className="flex gap-3 justify-end mt-4">
           <Button variant="secondary" onClick={() => setEmailOpen(false)} disabled={sending}>Cancel</Button>
@@ -319,7 +319,7 @@ export default function CommunicationPanel({ card, customers }: CommunicationPan
             />
           </div>
           <p className="text-xs text-slate-400">
-            Sends a full card summary including customers, logistics, notes, and 24-hour attachment links. Requires RESEND_API_KEY and RESEND_FROM_EMAIL.
+            Sends a full card summary including customers, logistics, notes, and 24-hour attachment links. Email must be configured by an admin.
           </p>
         </div>
         <div className="flex gap-3 justify-end mt-4">

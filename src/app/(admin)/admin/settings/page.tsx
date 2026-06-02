@@ -7,7 +7,7 @@ import Input from '@/components/ui/Input';
 import Badge from '@/components/ui/Badge';
 import Modal from '@/components/ui/Modal';
 import { useToastStore } from '@/store/toastStore';
-import { Settings, MapPin, Plus, Edit, RefreshCw } from 'lucide-react';
+import { MapPin, Plus, Edit, RefreshCw } from 'lucide-react';
 
 export default function AdminSettingsPage() {
   const addToast = useToastStore((s) => s.addToast);
@@ -89,8 +89,8 @@ export default function AdminSettingsPage() {
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <div className="flex items-center gap-3 mb-8">
-        <Settings className="w-5 h-5 text-slate-700" />
-        <h1 className="text-xl font-bold text-black">Settings</h1>
+        <MapPin className="w-5 h-5 text-slate-700" />
+        <h1 className="text-xl font-bold text-black">Destinations</h1>
       </div>
 
       {/* Destinations section */}

@@ -77,7 +77,8 @@ export default function MessageTemplatesPage() {
       </div>
       <p className="text-sm text-slate-500 mb-4">
         When a card moves to a status, every customer on that card who has an email and has automatic
-        emails enabled is sent the matching template below. Email only.
+        emails enabled is sent the matching template below. Email only. Internal team LINE
+        notifications are configured under <a href="/admin/communications" className="underline font-medium text-slate-600">Communications</a>.
       </p>
 
       <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 text-xs text-amber-800">

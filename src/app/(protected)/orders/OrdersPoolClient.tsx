@@ -237,8 +237,8 @@ export default function OrdersPoolClient({ initialOrders, role }: Props) {
           {hasFilters ? 'No orders match the current filters.' : 'No orders yet. Create your first order.'}
         </div>
       ) : (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto">
+          <table className="w-full text-sm min-w-[640px]">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 {canDispatch && <th className="w-10 px-4 py-3" />}

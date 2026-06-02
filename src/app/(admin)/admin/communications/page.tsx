@@ -8,7 +8,17 @@ import Badge from '@/components/ui/Badge';
 import Modal from '@/components/ui/Modal';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useToastStore } from '@/store/toastStore';
-import { MessageSquare, Plus, Edit, RefreshCw, Info, Trash2 } from 'lucide-react';
+import { MessageSquare, Plus, Edit, RefreshCw, Info, Trash2, Send, CheckCircle, XCircle, MinusCircle } from 'lucide-react';
+import { formatDateTime } from '@/lib/utils';
+
+interface NotificationEventRow {
+  id: string;
+  type: string;
+  status: 'sent' | 'failed' | 'skipped' | 'pending';
+  error: string | null;
+  created_at: string;
+}
+interface LineConfig { line_configured: boolean; email_configured: boolean; default_target_set: boolean; }
 
 const STATUS_TRIGGER_OPTIONS = [
   { value: 'card_created', label: 'Card Created' },
@@ -34,17 +44,43 @@ export default function CommunicationsPage() {
   const [savingMaster, setSavingMaster] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<LineGroup | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [config, setConfig] = useState<LineConfig | null>(null);
+  const [events, setEvents] = useState<NotificationEventRow[]>([]);
+  const [testing, setTesting] = useState(false);
 
   const fetch_ = async () => {
     setLoading(true);
     try {
-      const [gRes, sRes] = await Promise.all([fetch('/api/line-groups'), fetch('/api/line-settings')]);
+      const [gRes, sRes, nRes] = await Promise.all([
+        fetch('/api/line-groups'),
+        fetch('/api/line-settings'),
+        fetch('/api/notifications'),
+      ]);
       const gData = await gRes.json();
       setGroups(gData.groups ?? []);
       const sData = await sRes.json();
       if (typeof sData.master_enabled === 'boolean') setMasterEnabled(sData.master_enabled);
+      setConfig({
+        line_configured: !!sData.line_configured,
+        email_configured: !!sData.email_configured,
+        default_target_set: !!sData.default_target_set,
+      });
+      const nData = await nRes.json();
+      setEvents(nData.events ?? []);
     } catch { addToast('Failed to load', 'error'); }
     finally { setLoading(false); }
+  };
+
+  const sendTest = async () => {
+    setTesting(true);
+    try {
+      const res = await fetch('/api/line-settings/test', { method: 'POST' });
+      const data = await res.json();
+      if (data.ok) addToast('Test message sent to the default LINE group', 'success');
+      else addToast(data.error || 'Test failed', 'error');
+      fetch_();
+    } catch { addToast('Test failed', 'error'); }
+    finally { setTesting(false); }
   };
 
   useEffect(() => { fetch_(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -170,16 +206,39 @@ export default function CommunicationsPage() {
         </label>
       </div>
 
+      {/* Connection status + test */}
+      <div className="rounded-xl border border-slate-200 bg-white p-4 mb-4 flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap text-xs">
+          {config && (
+            <>
+              <ConfigChip ok={config.line_configured} label="LINE token" />
+              <ConfigChip ok={config.default_target_set} label="Default group" />
+              <ConfigChip ok={config.email_configured} label="Fallback email" />
+            </>
+          )}
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={sendTest}
+          loading={testing}
+          disabled={!config?.line_configured || !config?.default_target_set}
+        >
+          <Send className="w-3.5 h-3.5" /> Send test
+        </Button>
+      </div>
+
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 flex items-start gap-2 text-xs text-amber-800">
         <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
         <div className="space-y-1">
           <p><strong>How routing works:</strong> each event is sent only to <strong>active</strong> groups that have ticked it below. An event no active group subscribes to is not sent (and the master switch above mutes everything).</p>
           <p><strong>Adding groups:</strong> invite the bot to a LINE group and it auto-appears here (via the <code>/api/line/webhook</code>), or add it manually with its Target ID. Token via <code>LINE_CHANNEL_ID</code>/<code>LINE_CHANNEL_SECRET</code> (or legacy <code>LINE_CHANNEL_ACCESS_TOKEN</code>).</p>
+          <p>This page controls <strong>internal team</strong> LINE notifications. Customer-facing emails are configured under <a href="/admin/message-templates" className="underline font-medium">Msg Templates</a>.</p>
         </div>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto">
+        <table className="w-full text-sm min-w-[640px]">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
               <th className="text-left px-4 py-3 font-semibold text-slate-600">Group Name</th>
@@ -227,6 +286,28 @@ export default function CommunicationsPage() {
         )}
       </div>
 
+      {/* Recent automatic notifications (observability) */}
+      <div className="mt-6">
+        <h2 className="text-sm font-semibold text-slate-700 mb-2">Recent automatic notifications</h2>
+        <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100">
+          {events.length === 0 ? (
+            <p className="text-xs text-slate-400 text-center py-6">No notifications yet</p>
+          ) : (
+            events.map((ev) => (
+              <div key={ev.id} className="flex items-start gap-2 px-4 py-2.5 text-xs">
+                <span className="mt-0.5 flex-shrink-0"><NotifIcon status={ev.status} /></span>
+                <div className="min-w-0 flex-1">
+                  <span className="font-medium text-slate-700">{ev.type}</span>
+                  <span className="text-slate-400 ml-2">{formatDateTime(ev.created_at)}</span>
+                  {ev.error && <p className="text-red-500 mt-0.5 truncate">{ev.error}</p>}
+                </div>
+                <span className="text-slate-400 capitalize flex-shrink-0">{ev.status}</span>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
       <ConfirmDialog
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
@@ -250,7 +331,7 @@ export default function CommunicationsPage() {
               className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-crimson-500 font-mono"
             />
             <p className="text-xs text-slate-400 mt-1">
-              The LINE group ID from your Messaging API webhook events. Requires <code>LINE_CHANNEL_ACCESS_TOKEN</code> env var.
+              The LINE group/room ID. Usually captured automatically when the bot is added to a group; you can also paste it here.
             </p>
           </div>
           <div>
@@ -277,4 +358,18 @@ export default function CommunicationsPage() {
       </Modal>
     </div>
   );
+}
+
+function ConfigChip({ ok, label }: { ok: boolean; label: string }) {
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border ${ok ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-400 border-slate-200'}`}>
+      {ok ? <CheckCircle className="w-3 h-3" /> : <MinusCircle className="w-3 h-3" />} {label}
+    </span>
+  );
+}
+
+function NotifIcon({ status }: { status: string }) {
+  if (status === 'sent') return <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />;
+  if (status === 'failed') return <XCircle className="w-3.5 h-3.5 text-red-500" />;
+  return <MinusCircle className="w-3.5 h-3.5 text-slate-400" />;
 }

@@ -51,12 +51,16 @@ export default function Navbar({ userEmail, userName, onMenuClick }: NavbarProps
       </div>
 
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2 text-sm text-slate-900">
+        <Link
+          href="/account"
+          className="flex items-center gap-2 text-sm text-slate-900 hover:text-crimson-700 transition-colors px-2 py-1 rounded-lg hover:bg-crimson-50"
+          title="My account"
+        >
           <div className="w-7 h-7 rounded-full bg-crimson-100 flex items-center justify-center">
             <User className="w-4 h-4 text-crimson-700" />
           </div>
           <span className="hidden sm:block">{userName || userEmail}</span>
-        </div>
+        </Link>
         <button
           onClick={handleSignOut}
           className="flex items-center gap-1.5 text-sm text-slate-700 hover:text-crimson-700 transition-colors px-3 py-1.5 rounded-lg hover:bg-crimson-50"

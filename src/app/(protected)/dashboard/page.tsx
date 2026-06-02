@@ -82,6 +82,14 @@ export default async function DashboardPage() {
         <StatCard title="Delivered This Month" value={deliveredThisMonth} icon={CheckCircle2} color="green" href="/archive" subtitle="completed" />
       </div>
 
+      {allCards.length === 0 && (
+        <div className="bg-white border border-dashed border-slate-300 rounded-xl p-8 text-center mb-8">
+          <p className="font-semibold text-slate-900">No deliveries yet</p>
+          <p className="text-sm text-slate-500 mt-1 mb-4">Create your first delivery card to start tracking it through to completion.</p>
+          <NewCardButton />
+        </div>
+      )}
+
       {/* Main grid */}
       <div className="grid lg:grid-cols-2 gap-6">
         <RecentCards cards={draftCards} title="Draft / Planning Queue" />

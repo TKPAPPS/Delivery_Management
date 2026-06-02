@@ -11,7 +11,13 @@ export async function GET() {
 
   const admin = createSupabaseAdminClient();
   const master_enabled = await getLineMasterEnabled(admin);
-  return NextResponse.json({ master_enabled });
+  const line_configured = !!(
+    (process.env.LINE_CHANNEL_ID && process.env.LINE_CHANNEL_SECRET) ||
+    process.env.LINE_CHANNEL_ACCESS_TOKEN
+  );
+  const email_configured = !!(process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL);
+  const default_target_set = !!process.env.LINE_DEFAULT_TARGET_ID;
+  return NextResponse.json({ master_enabled, line_configured, email_configured, default_target_set });
 }
 
 export async function PUT(req: NextRequest) {

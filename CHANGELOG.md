@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented here. Dates are YYYY-MM-DD.
 
+## 2026-06-02 (audit follow-up — should-fix + polish)
+
+- **Security hardening:** pinned `search_path` on all flagged DB functions and revoked RPC EXECUTE on
+  the two trigger-only SECURITY DEFINER functions (cleared 9 + 2 Supabase advisor warnings). The
+  `auth_user_is_active`/`auth_user_is_admin` warnings are kept intentionally — they're RLS helpers
+  that must stay executable. (Manual follow-up: enable Leaked Password Protection in Supabase Auth.)
+- **Notification observability:** admin `GET /api/notifications` + a "Recent notifications" panel,
+  a connection-status indicator, and a "Send test" button on Communications.
+- **No duplicate LINE groups:** unique index on `line_groups.line_target_id`; the webhook now upserts.
+- **Cleanup:** removed the legacy `planning_queue` table + API routes and dead `PlanningQueueItem`
+  type; stripped env-var names from user-facing copy; fixed `.env.local.example`; verified the manual
+  DB types match the live schema (the old courier/cargo drift note no longer applies).
+- **Polish:** self-service `/account` (edit own name) via the navbar; admin "Settings" renamed to
+  "Destinations"; loading skeletons for dashboard/orders/planning-queue/archive; first-run CTA on an
+  empty dashboard; horizontally-scrollable admin tables on mobile; Communications <-> Msg Templates
+  cross-links.
+
 ## 2026-06-02 (whole-app must-fix round)
 
 - **Error/not-found pages:** added app-level `not-found.tsx`, `error.tsx`, and `global-error.tsx` so

@@ -227,20 +227,6 @@ export interface NotificationEvent {
   processed_at: string | null;
 }
 
-export interface PlanningQueueItem {
-  id: string;
-  customer_name: string;
-  destination: string | null;
-  delivery_location: string | null;
-  sale_order_refs: string[];
-  extra_items: Array<{ item_name: string; quantity?: string }>;
-  notes: string | null;
-  reason: string | null;
-  sort_order: number;
-  created_by: string | null;
-  created_at: string;
-}
-
 export interface Order {
   id: string;
   order_ref: string;
@@ -404,12 +390,6 @@ export type Database = {
         Row: NotificationEvent;
         Insert: Partial<Omit<NotificationEvent, 'id' | 'created_at'>> & Pick<NotificationEvent, 'type'>;
         Update: Partial<NotificationEvent>;
-        Relationships: [];
-      };
-      planning_queue: {
-        Row: PlanningQueueItem;
-        Insert: Partial<Omit<PlanningQueueItem, 'id' | 'created_at'>> & Pick<PlanningQueueItem, 'customer_name'>;
-        Update: Partial<PlanningQueueItem>;
         Relationships: [];
       };
       app_settings: {
