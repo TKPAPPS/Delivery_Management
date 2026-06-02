@@ -151,8 +151,9 @@ export default function CommunicationsPage() {
         <div>
           <p className="font-semibold text-slate-900 text-sm">Automatic LINE notifications</p>
           <p className="text-xs text-slate-500 mt-0.5">
-            Master switch for automatic delivery notifications. When off, nothing is auto-sent
-            (LINE or its fallback email), regardless of group settings.
+            Master switch for automatic <strong>team</strong> notifications (LINE + its fallback
+            email). When off, no automatic team messages are sent, regardless of group settings.
+            Does not affect customer emails (Msg Templates) or manual sends from a card.
           </p>
         </div>
         <label className="flex items-center gap-2 cursor-pointer flex-shrink-0">

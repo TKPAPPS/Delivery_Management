@@ -10,3 +10,7 @@ create table if not exists app_settings (
   updated_at timestamptz not null default now(),
   updated_by uuid references profiles(id)
 );
+
+-- Only the service-role admin client touches this table (it bypasses RLS); enabling RLS with no
+-- policies denies anon/authenticated, so settings can't be read/written via the public anon key.
+alter table app_settings enable row level security;

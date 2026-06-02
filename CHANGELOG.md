@@ -4,6 +4,16 @@ All notable changes to this project are documented here. Dates are YYYY-MM-DD.
 
 ## 2026-06-02
 
+### Security & copy fixes (post-audit must-fix)
+
+- **Enabled RLS on `app_settings`** (it was the only public table without it). The table is reachable
+  via the public anon key through PostgREST, so without RLS anyone could read/write settings and flip
+  the LINE master switch, bypassing the admin-only API. RLS is now on with no policies — the
+  service-role client (only writer) still works; anon/authenticated are denied (verified: anon read
+  empty, update 0 rows, insert 403).
+- Clarified the master-switch help copy: it covers automatic **team** notifications (LINE + fallback
+  email) only — not customer emails (Msg Templates) and not manual sends from a card.
+
 ### LINE notifications: master switch, per-group routing, token + webhook
 
 - Added a **master ON/OFF switch** (top of `/admin/communications`) that mutes all automatic
