@@ -222,11 +222,17 @@ export async function POST(req: NextRequest) {
           fields: ['id', 'email', 'phone', 'mobile', 'street', 'street2', 'city', 'zip'],
         })) as OdooPartner[];
         const str = (v: string | false) => (typeof v === 'string' && v.trim() ? v.trim() : null);
+        // Odoo phone fields are often junk placeholders ("-", "0", "n/a"). Treat anything with
+        // fewer than 5 digits as empty so it doesn't become a contact number.
+        const phoneStr = (v: string | false) => {
+          const s = typeof v === 'string' ? v.trim() : '';
+          return s && (s.match(/\d/g) ?? []).length >= 5 ? s : null;
+        };
         for (const p of partners) {
           partnerMap.set(p.id, {
             email: str(p.email),
             // Prefer mobile; `phone` is the landline (rarely used) and is only a fallback.
-            phone: str(p.mobile) ?? str(p.phone),
+            phone: phoneStr(p.mobile) ?? phoneStr(p.phone),
             address: composeAddress(p),
           });
         }

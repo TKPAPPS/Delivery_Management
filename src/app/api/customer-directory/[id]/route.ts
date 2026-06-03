@@ -39,8 +39,12 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
+  // Hard delete. FKs on orders.customer_id and delivery_customers.customer_directory_id are
+  // ON DELETE SET NULL, so references are cleared automatically — and a later order→delivery
+  // conversion will recreate the company by name (fresh email/phone/address). Use Deactivate
+  // (PATCH active=false) instead when you only want to hide it.
   const admin = createSupabaseAdminClient();
-  const { error } = await admin.from('customer_directory').update({ active: false }).eq('id', params.id);
+  const { error } = await admin.from('customer_directory').delete().eq('id', params.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });
 }

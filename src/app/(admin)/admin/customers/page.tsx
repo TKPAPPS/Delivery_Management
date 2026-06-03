@@ -7,8 +7,9 @@ import Input from '@/components/ui/Input';
 import Textarea from '@/components/ui/Textarea';
 import Badge from '@/components/ui/Badge';
 import Modal from '@/components/ui/Modal';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useToastStore } from '@/store/toastStore';
-import { BookUser, Plus, Edit, RefreshCw } from 'lucide-react';
+import { BookUser, Plus, Edit, RefreshCw, Trash2 } from 'lucide-react';
 
 const EMPTY_FORM = { name: '', email: '', contact_number: '', full_address: '', default_delivery_location: '', notes: '' };
 
@@ -20,6 +21,8 @@ export default function AdminCustomersPage() {
   const [editCustomer, setEditCustomer] = useState<CustomerDirectory | null>(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [deleteTarget, setDeleteTarget] = useState<CustomerDirectory | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchCustomers = async () => {
     setLoading(true);
@@ -93,6 +96,22 @@ export default function AdminCustomersPage() {
     }
   };
 
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/customer-directory/${deleteTarget.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error();
+      setCustomers((prev) => prev.filter((x) => x.id !== deleteTarget.id));
+      addToast('Customer deleted', 'success');
+      setDeleteTarget(null);
+    } catch {
+      addToast('Failed to delete customer', 'error');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const f = (key: keyof typeof EMPTY_FORM) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((prev) => ({ ...prev, [key]: e.target.value }));
 
@@ -149,6 +168,9 @@ export default function AdminCustomersPage() {
                       <Button size="sm" variant="outline" onClick={() => toggleActive(c)}>
                         {c.active ? 'Deactivate' : 'Activate'}
                       </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(c)} className="text-red-600 hover:bg-red-50">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
                     </div>
                   </td>
                 </tr>
@@ -175,6 +197,16 @@ export default function AdminCustomersPage() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+        title="Delete customer"
+        message={`Delete "${deleteTarget?.name ?? ''}"? This removes it from the directory. Existing deliveries keep their saved details, and a future Odoo order will recreate it fresh.`}
+        confirmLabel="Delete"
+        loading={deleting}
+      />
     </div>
   );
 }
