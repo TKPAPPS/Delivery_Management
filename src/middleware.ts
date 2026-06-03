@@ -12,8 +12,13 @@ export async function middleware(req: NextRequest) {
     return res;
   }
 
-  // Skip public routes and API auth callback
-  const publicPaths = ['/login', '/pending', '/api/auth'];
+  // API routes authenticate themselves (getSessionUser) and must never be redirected.
+  // Returning before auth here also avoids a wasted getUser() round-trip on every
+  // API request — the route's own auth check is the single validation point.
+  if (pathname.startsWith('/api/')) return res;
+
+  // Skip public routes
+  const publicPaths = ['/login', '/pending'];
   if (publicPaths.some((p) => pathname.startsWith(p))) return res;
 
   const supabase = createServerClient(
@@ -37,11 +42,6 @@ export async function middleware(req: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  // API routes must never be redirected — they handle auth themselves and
-  // return JSON. A redirect here would make fetch() follow it, get back HTML
-  // with status 200, and silently swallow the failure.
-  if (pathname.startsWith('/api/')) return res;
 
   if (!user) return NextResponse.redirect(new URL('/login', req.url));
 

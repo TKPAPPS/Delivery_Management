@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser, createSupabaseAdminClient } from '@/lib/supabase-server';
 import { logActivity, ACTIONS } from '@/lib/activity';
 import { parseBody } from '@/lib/parse-body';
+import { queryOrdersPage } from '@/lib/orders-query';
 
 // Only admin and sales may create or mutate orders in Phase 2.
 // Logistics and warehouse are read-only.
@@ -12,48 +13,22 @@ export async function GET(req: NextRequest) {
   if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  const status = searchParams.get('status');
-  const priority = searchParams.get('priority');
-  const source = searchParams.get('source');
+  const pageParam = searchParams.get('page');
 
   const admin = createSupabaseAdminClient();
 
-  let query = admin
-    .from('orders')
-    .select(`
-      *,
-      customer:customer_directory!orders_customer_id_fkey(id, name),
-      destination:destinations!orders_destination_id_fkey(id, name),
-      creator:profiles!orders_created_by_fkey(id, name, email)
-    `)
-    .is('deleted_at', null)
-    .order('priority', { ascending: false })
-    .order('created_at', { ascending: false });
-
-  if (status) query = query.eq('status', status);
-  if (priority) query = query.eq('priority', parseInt(priority, 10));
-  if (source) query = query.eq('source', source);
-
-  const { data: orders, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-  if (!orders?.length) return NextResponse.json({ orders: [] });
-
-  // Enrich with line counts
-  const orderIds = orders.map((o) => o.id);
-  const { data: lineRows } = await admin
-    .from('order_lines')
-    .select('order_id')
-    .in('order_id', orderIds)
-    .is('deleted_at', null);
-
-  const lineCountMap = (lineRows ?? []).reduce<Record<string, number>>((acc, l) => {
-    acc[l.order_id] = (acc[l.order_id] ?? 0) + 1;
-    return acc;
-  }, {});
-
-  const enriched = orders.map((o) => ({ ...o, _count: { lines: lineCountMap[o.id] ?? 0 } }));
-  return NextResponse.json({ orders: enriched });
+  try {
+    const result = await queryOrdersPage(admin, {
+      status: searchParams.get('status'),
+      priority: searchParams.get('priority'),
+      source: searchParams.get('source'),
+      q: searchParams.get('q'),
+      page: pageParam ? parseInt(pageParam, 10) : 1,
+    });
+    return NextResponse.json(result);
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Failed to load orders' }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {

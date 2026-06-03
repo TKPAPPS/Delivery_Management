@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Plus, Search, X, Truck, ExternalLink, RefreshCw } from 'lucide-react';
+import { Plus, Search, X, Truck, ExternalLink, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import CreateOrderModal from '@/components/orders/CreateOrderModal';
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
@@ -22,9 +22,6 @@ const STATUS_OPTIONS = [
   { value: 'completed', label: 'Completed' },
   { value: 'cancelled', label: 'Cancelled' },
 ];
-
-// Statuses considered "handled" — hidden under the default Active view.
-const HANDLED_STATUSES = ['assigned', 'completed', 'cancelled'];
 
 const PRIORITY_OPTIONS = [
   { value: '', label: 'All priorities' },
@@ -51,21 +48,38 @@ function resolveDestination(order: OrderListItem): string {
 
 interface Props {
   initialOrders: OrderListItem[];
+  initialTotal: number;
+  pageSize: number;
   role: string;
 }
 
-export default function OrdersPoolClient({ initialOrders, role }: Props) {
+export default function OrdersPoolClient({ initialOrders, initialTotal, pageSize, role }: Props) {
   const router = useRouter();
   const [orders, setOrders] = useState<OrderListItem[]>(initialOrders);
+  const [total, setTotal] = useState(initialTotal);
+  const [loading, setLoading] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [creatingDelivery, setCreatingDelivery] = useState(false);
 
-  // Filters
+  // Filters (server-side). `search` is the input; `appliedSearch` is the debounced value.
   const [search, setSearch] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('active');
   const [priorityFilter, setPriorityFilter] = useState('');
   const [sourceFilter, setSourceFilter] = useState('');
+  const [page, setPage] = useState(1);
+
+  // Debounce the search box → appliedSearch (and reset to page 1 on change).
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setAppliedSearch((prev) => {
+        if (prev !== search) setPage(1);
+        return search;
+      });
+    }, 350);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const canWrite = ['admin', 'sales'].includes(role);
   const isAdmin = role === 'admin';
@@ -96,20 +110,39 @@ export default function OrdersPoolClient({ initialOrders, role }: Props) {
   const canDispatch = ['admin', 'sales', 'logistics'].includes(role);
   const addToast = useToastStore((s) => s.addToast);
 
-  const fetchOrders = useCallback(async () => {
+  // Server-side fetch of the current page + filters. Single source of truth for the list.
+  const load = useCallback(async () => {
+    setLoading(true);
     try {
-      const res = await fetch('/api/orders');
+      const params = new URLSearchParams();
+      if (statusFilter) params.set('status', statusFilter);
+      if (priorityFilter) params.set('priority', priorityFilter);
+      if (sourceFilter) params.set('source', sourceFilter);
+      if (appliedSearch.trim()) params.set('q', appliedSearch.trim());
+      params.set('page', String(page));
+      const res = await fetch(`/api/orders?${params.toString()}`);
       if (!res.ok) throw new Error('Request failed');
       const d = await res.json();
       setOrders(d.orders ?? []);
+      setTotal(d.total ?? 0);
     } catch {
-      addToast('Failed to refresh orders', 'error');
+      addToast('Failed to load orders', 'error');
+    } finally {
+      setLoading(false);
     }
-  }, [addToast]);
+  }, [statusFilter, priorityFilter, sourceFilter, appliedSearch, page, addToast]);
 
-  // Live sync: refetch when any order changes. Debounced so a bulk Odoo sync
-  // (hundreds of row events) collapses into a single refetch.
-  const scheduleRefetch = useDebouncedCallback(() => { void fetchOrders(); });
+  // Refetch whenever filters / search / page change. Skip the first run — the SSR
+  // page already provided page 1 of the default view.
+  const didMount = useRef(false);
+  useEffect(() => {
+    if (!didMount.current) { didMount.current = true; return; }
+    void load();
+  }, [load]);
+
+  // Live sync: refetch the current page when any order changes. Debounced so a bulk
+  // Odoo sync (hundreds of row events) collapses into a single refetch.
+  const scheduleRefetch = useDebouncedCallback(() => { void load(); });
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
     const channel = supabase
@@ -119,36 +152,16 @@ export default function OrdersPoolClient({ initialOrders, role }: Props) {
     return () => { supabase.removeChannel(channel); };
   }, [scheduleRefetch]);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const matched = orders.filter((o) => {
-      if (statusFilter === 'active') {
-        if (HANDLED_STATUSES.includes(o.status)) return false;
-      } else if (statusFilter && o.status !== statusFilter) return false;
-      if (priorityFilter && String(o.priority) !== priorityFilter) return false;
-      if (sourceFilter && o.source !== sourceFilter) return false;
-      if (q) {
-        const customer = resolveCustomer(o).toLowerCase();
-        const destination = resolveDestination(o).toLowerCase();
-        if (
-          !o.order_ref.toLowerCase().includes(q) &&
-          !customer.includes(q) &&
-          !destination.includes(q) &&
-          !(o.notes ?? '').toLowerCase().includes(q)
-        ) return false;
-      }
-      return true;
-    });
-    // Sort to match what the table shows: priority first, then the displayed
-    // date column (order_date, falling back to created_at), newest first.
-    return matched.sort((a, b) =>
-      b.priority - a.priority ||
-      (b.order_date ?? b.created_at).localeCompare(a.order_date ?? a.created_at)
-    );
-  }, [orders, search, statusFilter, priorityFilter, sourceFilter]);
-
-  const clearFilters = () => { setSearch(''); setStatusFilter('active'); setPriorityFilter(''); setSourceFilter(''); };
+  // Filter changes reset to page 1.
+  const changeStatus = (v: string) => { setStatusFilter(v); setPage(1); };
+  const changePriority = (v: string) => { setPriorityFilter(v); setPage(1); };
+  const changeSource = (v: string) => { setSourceFilter(v); setPage(1); };
+  const clearFilters = () => { setSearch(''); setStatusFilter('active'); setPriorityFilter(''); setSourceFilter(''); setPage(1); };
   const hasFilters = !!(search || statusFilter !== 'active' || priorityFilter || sourceFilter);
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const rangeFrom = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const rangeTo = Math.min(page * pageSize, total);
 
   // An order can be turned into a delivery only if not already assigned and not terminal.
   const isDispatchable = (o: OrderListItem) => !o.delivery_card_id && o.status !== 'completed' && o.status !== 'cancelled';
@@ -190,7 +203,7 @@ export default function OrdersPoolClient({ initialOrders, role }: Props) {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-bold text-slate-900">Orders Pool</h1>
-          <p className="text-sm text-slate-500 mt-0.5">{filtered.length} order{filtered.length !== 1 ? 's' : ''}</p>
+          <p className="text-sm text-slate-500 mt-0.5">{total} order{total !== 1 ? 's' : ''}</p>
         </div>
         <div className="flex items-center gap-2">
           {isAdmin && (
@@ -220,21 +233,21 @@ export default function OrdersPoolClient({ initialOrders, role }: Props) {
         </div>
         <select
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          onChange={(e) => changeStatus(e.target.value)}
           className="text-sm border border-slate-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           {STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
         <select
           value={priorityFilter}
-          onChange={(e) => setPriorityFilter(e.target.value)}
+          onChange={(e) => changePriority(e.target.value)}
           className="text-sm border border-slate-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           {PRIORITY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
         <select
           value={sourceFilter}
-          onChange={(e) => setSourceFilter(e.target.value)}
+          onChange={(e) => changeSource(e.target.value)}
           className="text-sm border border-slate-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           {SOURCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -264,12 +277,12 @@ export default function OrdersPoolClient({ initialOrders, role }: Props) {
       )}
 
       {/* Table */}
-      {filtered.length === 0 ? (
+      {orders.length === 0 ? (
         <div className="text-center py-16 text-slate-400">
-          {hasFilters ? 'No orders match the current filters.' : 'No orders yet. Create your first order.'}
+          {loading ? 'Loading…' : hasFilters ? 'No orders match the current filters.' : 'No orders yet. Create your first order.'}
         </div>
       ) : (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto">
+        <div className={`bg-white border border-slate-200 rounded-xl overflow-x-auto transition-opacity ${loading ? 'opacity-60' : ''}`}>
           <table className="w-full text-sm min-w-[640px]">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
@@ -285,7 +298,7 @@ export default function OrdersPoolClient({ initialOrders, role }: Props) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filtered.map((order) => (
+              {orders.map((order) => (
                 <tr key={order.id} className="hover:bg-slate-50 transition-colors">
                   {canDispatch && (
                     <td className="px-4 py-3">
@@ -344,8 +357,34 @@ export default function OrdersPoolClient({ initialOrders, role }: Props) {
         </div>
       )}
 
+      {/* Pagination */}
+      {total > pageSize && (
+        <div className="flex items-center justify-between mt-4">
+          <p className="text-sm text-slate-500">
+            Showing {rangeFrom}–{rangeTo} of {total}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1 || loading}
+              className="flex items-center gap-1 text-sm border border-slate-300 rounded-lg px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+            >
+              <ChevronLeft className="w-4 h-4" /> Prev
+            </button>
+            <span className="text-sm text-slate-500">Page {page} of {totalPages}</span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages || loading}
+              className="flex items-center gap-1 text-sm border border-slate-300 rounded-lg px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+            >
+              Next <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {canWrite && (
-        <CreateOrderModal open={createOpen} onClose={() => { setCreateOpen(false); fetchOrders(); }} />
+        <CreateOrderModal open={createOpen} onClose={() => { setCreateOpen(false); void load(); }} />
       )}
     </div>
   );

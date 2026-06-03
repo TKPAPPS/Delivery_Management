@@ -120,6 +120,8 @@ const admin = createSupabaseAdminClient();
 
 `getSessionUser()` in `src/lib/supabase-server.ts` centralizes all auth and active-profile checks. It returns `null` for unauthenticated users AND for users with `active=false`. Every route checks `if (!ctx)` — no per-route active-check is needed.
 
+**Middleware does NOT guard `/api/*`.** `src/middleware.ts` returns early for `/api/` paths **before** creating a Supabase client or calling `getUser()` (page navigations still get a validating `getUser()`). So API routes are the **sole** auth gate for themselves, via `getSessionUser()` — which is why that helper calls `getUser()` (validates the JWT against the auth server), not `getSession()` (cookie-only, unvalidated). Don't weaken it to `getSession()`: with middleware not guarding API routes, that would let a forged cookie through. The early return also avoids a wasted `getUser()` round-trip on every API request.
+
 ### Safe JSON body parsing
 
 Use `parseBody` from `src/lib/parse-body.ts` instead of bare `req.json()`. This returns 400 for malformed JSON instead of an unhandled exception:
@@ -345,10 +347,29 @@ await logActivity(null, user.id, ACTIONS.ORDER_CREATED, { order_ref }, { entity_
 ```
 
 ### Order API routes
-- `GET/POST /api/orders` — list (with line count enrichment) + create
+- `GET/POST /api/orders` — list (server-paginated, see below) + create
 - `GET/PATCH/DELETE /api/orders/[id]` — detail + update (whitelisted fields) + soft delete (admin)
 - `GET/POST /api/orders/[id]/lines` — list non-deleted lines + add line
 - `PATCH/DELETE /api/order-lines/[id]` — update line (whitelisted) + soft delete
+
+### Orders Pool list (server-side pagination)
+The Orders Pool can hold thousands of synced Odoo orders, so the list is filtered and
+paginated **server-side** (never load all rows). The single source of truth is
+`queryOrdersPage()` in `src/lib/orders-query.ts`, used by **both** the SSR page
+([orders/page.tsx](src/app/(protected)/orders/page.tsx)) and `GET /api/orders`:
+- Query params: `status`, `priority`, `source`, `q` (search), `page`. Page size is
+  `ORDERS_PAGE_SIZE` (50). Returns `{ orders, total, page, limit }`.
+- `status=active` (the default view) means "not in (assigned, completed, cancelled)".
+  Empty/absent `status` means all statuses; any other value is an exact match.
+- `q` searches base columns only (`order_ref`, `customer_name_manual`, `destination_manual`,
+  `notes`) via a PostgREST `.or(... ilike ...)`. The term is sanitized (`,()*\` stripped) so it
+  can't break the `.or()` grammar. Odoo orders always carry `customer_name_manual` /
+  `destination_manual`, so base-column search covers the data without joining the directory.
+- Line counts are computed **only for the returned page's order IDs**, not all `order_lines`.
+- An out-of-range page (e.g. a stale page after rows were removed) returns an **empty page with
+  the real total** (PostgREST `PGRST103` is caught) instead of a 500.
+- `OrdersPoolClient` keeps `search` (input) debounced into `appliedSearch`; changing any
+  filter/search resets to page 1; realtime order changes refetch the current page (debounced).
 
 ## Odoo Sync (Phase 3)
 
@@ -417,6 +438,7 @@ Sync also batch-reads `res.partner` (read-only) for each order's `partner_id` �
 - `supabase/migration_odoo_sync_v1.sql` — Phase 3 Odoo sync schema (odoo_sync_logs columns, order_lines odoo_line_id/odoo_product_id, partial unique index)
 - `supabase/seed.sql` — first admin setup
 - `src/lib/odoo.ts` — Odoo XML-RPC client (authenticate, executeKw, 30s timeout)
+- `src/lib/orders-query.ts` — `queryOrdersPage()`: shared server-side filter/search/pagination for the Orders Pool (used by the SSR page and `GET /api/orders`)
 - `src/app/(protected)/orders/page.tsx` — Orders Pool (client page)
 - `src/app/(protected)/orders/[id]/OrderDetailClient.tsx` — order detail (edit, lines, activity)
 - `src/components/orders/CreateOrderModal.tsx` — manual order creation form
