@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented here. Dates are YYYY-MM-DD.
 
+## 2026-06-03
+
+### Odoo customers get an email (so automatic customer emails work)
+
+- Odoo sync now snapshots the partner's **email + address** onto the order (`orders.customer_email`,
+  `orders.customer_address`) via a read-only `res.partner` read.
+- When an order is **converted to a draft delivery**, the bridge resolves the **company by name** in
+  the Customer Directory (creating it if new), seeding email + full address **only if empty** (never
+  overwrites a team-edited value), links the order, and copies the email onto the delivery customer.
+- Net effect: Odoo-sourced customers now receive the automatic status emails (previously they had a
+  name but no email). The team owns/edits the email in the Directory; re-syncs don't clobber it.
+- Customers are created at conversion, not at sync; Odoo stays read-only.
+
 ## 2026-06-02 (audit follow-up — should-fix + polish)
 
 - **Security hardening:** pinned `search_path` on all flagged DB functions and revoked RPC EXECUTE on

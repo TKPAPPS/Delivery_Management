@@ -20,7 +20,9 @@ The app exists to turn sales demand into coordinated, tracked deliveries with on
 
 ### Order → Delivery bridge
 
-Orders are turned into deliveries via **`POST /api/deliveries/from-orders`** `{ order_ids: string[] }`: it creates one **draft** `delivery_card`, one `delivery_customer` per order (name/email pulled from the linked Customer Directory entry), maps distinct `sale_order_number`s → `customer_sale_orders` and each order line → `extra_delivery_items`, then marks each order `status='assigned'` and sets `orders.delivery_card_id` (FK, `on delete set null`). UI: "Create Delivery" on the order detail page, and multi-select → "Create Delivery" on the Orders Pool (merges several orders into one card, each as a customer). The Orders Pool defaults to an **"Active (unassigned)"** view that hides assigned/completed/cancelled; assigned rows link to their card. Partial/qty-based fulfillment is out of scope (warehouse Phase 4).
+Orders are turned into deliveries via **`POST /api/deliveries/from-orders`** `{ order_ids: string[] }`: it creates one **draft** `delivery_card`, one `delivery_customer` per order, maps distinct `sale_order_number`s → `customer_sale_orders` and each order line → `extra_delivery_items`, then marks each order `status='assigned'` and sets `orders.delivery_card_id` (FK, `on delete set null`).
+
+**Customer resolution at conversion (where Directory customers come from):** if the order already has `customer_id` (manual orders that picked a Directory entry), that entry is used. Otherwise (Odoo orders, which carry only a name) the bridge resolves the **company by name** (case-insensitive, active; ILIKE wildcards escaped + exact JS check) in `customer_directory` — **creating it if new** — and seeds the entry's `email` + `full_address` from the order's `customer_email`/`customer_address` snapshots **only if those fields are empty** (never overwrites a team-edited value). It then sets `orders.customer_id` and copies the company email onto `delivery_customers.customer_email` so the existing customer-email sender fires. So Directory customers are born **at order→draft conversion**, not at Odoo sync. UI: "Create Delivery" on the order detail page, and multi-select → "Create Delivery" on the Orders Pool (merges several orders into one card, each as a customer). The Orders Pool defaults to an **"Active (unassigned)"** view that hides assigned/completed/cancelled; assigned rows link to their card. Partial/qty-based fulfillment is out of scope (warehouse Phase 4).
 
 When a card is marked `delivered` (`PATCH /api/cards/[id]/status`), any linked orders (`orders.delivery_card_id`, non-deleted) that aren't already `completed`/`cancelled` are set to `status='completed'` so they leave the active Orders Pool. This is a **local DB write only** — `src/lib/odoo.ts` is never called, preserving the no-write-back-to-Odoo guarantee.
 
@@ -372,6 +374,9 @@ Defined in `src/lib/odoo.ts` as `ODOO_SYNC_STATES = ['sale', 'done']`. Edit here
 
 ### Product resolution
 Two-pass: read `sale.order.line` fields, then batch read `product.product` for unique product IDs to get `default_code` + `display_name`.
+
+### Partner contact capture
+Sync also batch-reads `res.partner` (read-only) for each order's `partner_id` — `email`, `street`, `street2`, `city`, `zip` — and snapshots them onto `orders.customer_email` + `orders.customer_address` (a composed one-line address). These are **not** written to the Directory at sync; they seed a `customer_directory` company when the order is converted to a delivery (see Order → Delivery bridge). Used to make automatic customer emails work for Odoo-sourced customers.
 
 ### Sync route design
 - `POST /api/sync/odoo` — admin only; optional body `{ since?: string }`; 409 if already running; 503 if unconfigured

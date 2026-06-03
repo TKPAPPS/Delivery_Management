@@ -27,6 +27,15 @@ export interface OdooProduct {
   display_name: string;
 }
 
+export interface OdooPartner {
+  id: number;
+  email: string | false;
+  street: string | false;
+  street2: string | false;
+  city: string | false;
+  zip: string | false;
+}
+
 // ---------------------------------------------------------------------------
 // Configurable sync filter — edit here to adjust which Odoo orders are synced
 // ---------------------------------------------------------------------------

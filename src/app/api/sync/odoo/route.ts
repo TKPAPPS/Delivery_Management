@@ -9,7 +9,15 @@ import {
   odooExecuteKw,
   ODOO_SYNC_STATES,
 } from '@/lib/odoo';
-import type { OdooSaleOrder, OdooOrderLine, OdooProduct } from '@/lib/odoo';
+import type { OdooSaleOrder, OdooOrderLine, OdooProduct, OdooPartner } from '@/lib/odoo';
+
+// Compose a one-line address from Odoo partner fields (skips empty parts).
+function composeAddress(p: OdooPartner): string | null {
+  const parts = [p.street, p.street2, p.city, p.zip]
+    .map((v) => (typeof v === 'string' ? v.trim() : ''))
+    .filter(Boolean);
+  return parts.length > 0 ? parts.join(', ') : null;
+}
 
 type ErrorEntry = { order_ref?: string; odoo_line_id?: number; reason: string };
 type AdminClient = ReturnType<typeof createSupabaseAdminClient>;
@@ -187,6 +195,27 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // Batch-read partner email + address (read-only) to snapshot onto each order.
+      const partnerIds = Array.from(
+        new Set(
+          odooOrders
+            .map((o) => (Array.isArray(o.partner_id) ? o.partner_id[0] : null))
+            .filter((id): id is number => id !== null),
+        ),
+      );
+      const partnerMap = new Map<number, { email: string | null; address: string | null }>();
+      if (partnerIds.length > 0) {
+        const partners = (await odooExecuteKw(uid, 'res.partner', 'read', [partnerIds], {
+          fields: ['id', 'email', 'street', 'street2', 'city', 'zip'],
+        })) as OdooPartner[];
+        for (const p of partners) {
+          partnerMap.set(p.id, {
+            email: typeof p.email === 'string' && p.email.trim() ? p.email.trim() : null,
+            address: composeAddress(p),
+          });
+        }
+      }
+
       // Group lines by Odoo order id
       const linesByOrderId = new Map<number, OdooOrderLine[]>();
       for (const line of odooLines) {
@@ -202,6 +231,10 @@ export async function POST(req: NextRequest) {
           const customerName = Array.isArray(odooOrder.partner_id)
             ? odooOrder.partner_id[1]
             : null;
+          const partnerId = Array.isArray(odooOrder.partner_id) ? odooOrder.partner_id[0] : null;
+          const partner = partnerId != null ? partnerMap.get(partnerId) : null;
+          const customerEmail = partner?.email ?? null;
+          const customerAddress = partner?.address ?? null;
           const destinationName = Array.isArray(odooOrder.partner_shipping_id)
             ? odooOrder.partner_shipping_id[1]
             : null;
@@ -232,6 +265,8 @@ export async function POST(req: NextRequest) {
                 odoo_order_ref: odooOrder.name,
                 odoo_sync_log_id: syncLogId,
                 customer_name_manual: customerName,
+                customer_email: customerEmail,
+                customer_address: customerAddress,
                 destination_manual: destinationName,
                 notes,
                 order_date: orderDate,
@@ -248,6 +283,8 @@ export async function POST(req: NextRequest) {
               .from('orders')
               .update({
                 customer_name_manual: customerName,
+                customer_email: customerEmail,
+                customer_address: customerAddress,
                 destination_manual: destinationName,
                 notes,
                 order_date: orderDate,

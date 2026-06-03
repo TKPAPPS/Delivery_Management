@@ -21,6 +21,8 @@ interface OrderRow {
   delivery_card_id: string | null;
   customer_id: string | null;
   customer_name_manual: string | null;
+  customer_email: string | null;
+  customer_address: string | null;
   destination_manual: string | null;
   customer: { id: string; name: string; email: string | null } | null;
   destination: { id: string; name: string } | null;
@@ -50,7 +52,7 @@ export async function POST(req: NextRequest) {
   const { data: rawOrders, error: fetchErr } = await admin
     .from('orders')
     .select(`
-      id, order_ref, status, delivery_card_id, customer_id, customer_name_manual, destination_manual,
+      id, order_ref, status, delivery_card_id, customer_id, customer_name_manual, customer_email, customer_address, destination_manual,
       customer:customer_directory!orders_customer_id_fkey(id, name, email),
       destination:destinations!orders_destination_id_fkey(id, name),
       lines:order_lines(product_name, product_code, sale_order_number, qty_ordered, deleted_at)
@@ -111,14 +113,50 @@ export async function POST(req: NextRequest) {
 
     if (!claimed) { skipped.push(o.order_ref); continue; }
 
+    // Resolve the Directory company. Manual orders already have customer_id; Odoo orders carry
+    // only a name (+ snapshotted email/address) — match the company by name, creating it if new
+    // and seeding email/address only when empty (never overwriting a team-edited value).
+    let directoryId: string | null = o.customer_id ?? null;
+    let companyEmail: string | null = o.customer?.email ?? null;
+    const companyName = (o.customer?.name ?? o.customer_name_manual ?? '').trim();
+    if (!directoryId && companyName) {
+      // Escape ILIKE wildcards so a name containing % or _ can't match the wrong company,
+      // then confirm an exact case-insensitive name match in JS (ILIKE could still over-match).
+      const escaped = companyName.replace(/[%_\\]/g, '\\$&');
+      const { data: matches } = await admin
+        .from('customer_directory')
+        .select('id, name, email, full_address')
+        .ilike('name', escaped)
+        .eq('active', true);
+      const match = (matches ?? []).find(
+        (m) => (m.name ?? '').trim().toLowerCase() === companyName.toLowerCase(),
+      ) ?? null;
+      if (match) {
+        directoryId = match.id;
+        companyEmail = match.email ?? null;
+        const patch: Record<string, unknown> = {};
+        if (!match.email && o.customer_email) { patch.email = o.customer_email; companyEmail = o.customer_email; }
+        if (!match.full_address && o.customer_address) patch.full_address = o.customer_address;
+        if (Object.keys(patch).length > 0) await admin.from('customer_directory').update(patch).eq('id', match.id);
+      } else {
+        const { data: created } = await admin
+          .from('customer_directory')
+          .insert({ name: companyName, email: o.customer_email ?? null, full_address: o.customer_address ?? null })
+          .select('id, email')
+          .single();
+        if (created) { directoryId = created.id; companyEmail = created.email ?? null; }
+      }
+      if (directoryId) await admin.from('orders').update({ customer_id: directoryId }).eq('id', o.id);
+    }
+
     const liveLines = (o.lines ?? []).filter((l) => !l.deleted_at);
     const { data: cust, error: custErr } = await admin
       .from('delivery_customers')
       .insert({
         delivery_card_id: card.id,
         customer_name: resolveCustomer(o),
-        customer_directory_id: o.customer_id ?? null,
-        customer_email: o.customer?.email ?? null,
+        customer_directory_id: directoryId,
+        customer_email: companyEmail,
         receive_auto_emails: true,
         notes: `From order ${o.order_ref}`,
         sort_order: assigned.length,

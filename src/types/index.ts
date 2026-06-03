@@ -235,6 +235,8 @@ export interface Order {
   odoo_sync_log_id: string | null;
   customer_id: string | null;
   customer_name_manual: string | null;
+  customer_email: string | null;
+  customer_address: string | null;
   destination_id: string | null;
   destination_manual: string | null;
   priority: number;
