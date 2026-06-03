@@ -183,6 +183,11 @@ export async function POST(req: NextRequest) {
         .maybeSingle();
       if (lastOk?.started_at) {
         effectiveSince = new Date(new Date(lastOk.started_at).getTime() - 60 * 60 * 1000).toISOString();
+      } else {
+        // No completed sync yet — bootstrap with a bounded window so the first run finishes
+        // (a full historical pull exceeds the function time limit). Older orders are already in
+        // the DB from prior runs; use "Full resync" to re-pull everything.
+        effectiveSince = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
       }
     }
     // Odoo wants 'YYYY-MM-DD HH:MM:SS' (UTC, no zone marker).
