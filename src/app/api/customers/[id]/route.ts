@@ -31,8 +31,32 @@ async function discardCardIfEmpty(admin: Admin, cardId: string | null, userId: s
     .eq('id', cardId);
   if (error) return false;
 
+  // Any orders still pointing at this card go back to the pool (normally none — each customer's
+  // order already followed/released as it left — but this covers stragglers).
+  await admin
+    .from('orders')
+    .update({ delivery_card_id: null, status: 'pending' })
+    .eq('delivery_card_id', cardId)
+    .not('status', 'in', '("completed","cancelled")');
+
   await logActivity(cardId, userId, ACTIONS.CARD_DELETED, { reason: 'auto_discarded_empty' });
   return true;
+}
+
+/** The order follows its customer to a new card (stays assigned). No-op for hand-added customers. */
+async function followOrderToCard(admin: Admin, orderId: string | null | undefined, cardId: string): Promise<void> {
+  if (!orderId) return;
+  await admin.from('orders').update({ delivery_card_id: cardId }).eq('id', orderId);
+}
+
+/** Release the order back to the Orders Pool (unassigned) so it can be dispatched again. */
+async function releaseOrderToPool(admin: Admin, orderId: string | null | undefined): Promise<void> {
+  if (!orderId) return;
+  await admin
+    .from('orders')
+    .update({ delivery_card_id: null, status: 'pending' })
+    .eq('id', orderId)
+    .not('status', 'in', '("completed","cancelled")');
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
@@ -69,6 +93,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         target_card_id,
       });
 
+      await followOrderToCard(admin, customer.order_id, target_card_id as string);
       const discarded = await discardCardIfEmpty(admin, customer.delivery_card_id, user.id);
       return NextResponse.json({ success: true, source_card_discarded: discarded });
     }
@@ -89,6 +114,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         new_card_id: newCard.id,
       });
 
+      await followOrderToCard(admin, customer.order_id, newCard.id);
       const discarded = await discardCardIfEmpty(admin, customer.delivery_card_id, user.id);
       return NextResponse.json({ success: true, newCardId: newCard.id, source_card_discarded: discarded });
     }
@@ -121,6 +147,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       new_card_id: queueCard.id,
     });
 
+    await followOrderToCard(admin, customer.order_id, queueCard.id);
     const discarded = await discardCardIfEmpty(admin, customer.delivery_card_id, user.id);
     return NextResponse.json({ success: true, newCardId: queueCard.id, source_card_discarded: discarded });
   }
@@ -166,6 +193,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     customer_name: customer.customer_name,
   });
 
+  await releaseOrderToPool(admin, customer.order_id);
   const discarded = await discardCardIfEmpty(admin, customer.delivery_card_id, user.id);
   return NextResponse.json({ success: true, source_card_discarded: discarded });
 }

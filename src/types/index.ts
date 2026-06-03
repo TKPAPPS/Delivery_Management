@@ -139,6 +139,7 @@ export interface DeliveryCard {
 export interface DeliveryCustomer {
   id: string;
   delivery_card_id: string;
+  order_id: string | null;
   customer_name: string;
   customer_directory_id: string | null;
   customer_email: string | null;

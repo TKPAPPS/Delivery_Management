@@ -168,6 +168,14 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     .eq('id', params.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  // Release this card's orders back to the Orders Pool (unassigned) so they're not stuck
+  // pointing at a deleted card; they can be dispatched again.
+  await admin
+    .from('orders')
+    .update({ delivery_card_id: null, status: 'pending' })
+    .eq('delivery_card_id', params.id)
+    .not('status', 'in', '("completed","cancelled")');
+
   await logActivity(params.id, ctx.user.id, ACTIONS.CARD_DELETED);
 
   return NextResponse.json({ success: true });

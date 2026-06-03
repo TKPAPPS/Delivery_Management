@@ -168,6 +168,7 @@ export async function POST(req: NextRequest) {
       .from('delivery_customers')
       .insert({
         delivery_card_id: card.id,
+        order_id: o.id,
         customer_name: resolveCustomer(o),
         customer_directory_id: directoryId,
         customer_email: companyEmail,
