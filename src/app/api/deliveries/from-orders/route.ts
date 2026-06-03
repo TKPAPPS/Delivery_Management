@@ -23,6 +23,7 @@ interface OrderRow {
   customer_name_manual: string | null;
   customer_email: string | null;
   customer_address: string | null;
+  customer_phone: string | null;
   destination_manual: string | null;
   customer: { id: string; name: string; email: string | null } | null;
   destination: { id: string; name: string } | null;
@@ -52,7 +53,7 @@ export async function POST(req: NextRequest) {
   const { data: rawOrders, error: fetchErr } = await admin
     .from('orders')
     .select(`
-      id, order_ref, status, delivery_card_id, customer_id, customer_name_manual, customer_email, customer_address, destination_manual,
+      id, order_ref, status, delivery_card_id, customer_id, customer_name_manual, customer_email, customer_address, customer_phone, destination_manual,
       customer:customer_directory!orders_customer_id_fkey(id, name, email),
       destination:destinations!orders_destination_id_fkey(id, name),
       lines:order_lines(product_name, product_code, sale_order_number, qty_ordered, deleted_at)
@@ -118,6 +119,9 @@ export async function POST(req: NextRequest) {
     // and seeding email/address only when empty (never overwriting a team-edited value).
     let directoryId: string | null = o.customer_id ?? null;
     let companyEmail: string | null = o.customer?.email ?? null;
+    // Delivery location for this customer: prefer the company's saved default, else the order's
+    // (Odoo) shipping destination.
+    let companyLocation: string | null = o.destination_manual ?? null;
     const companyName = (o.customer?.name ?? o.customer_name_manual ?? '').trim();
     if (!directoryId && companyName) {
       // Escape ILIKE wildcards so a name containing % or _ can't match the wrong company,
@@ -125,7 +129,7 @@ export async function POST(req: NextRequest) {
       const escaped = companyName.replace(/[%_\\]/g, '\\$&');
       const { data: matches } = await admin
         .from('customer_directory')
-        .select('id, name, email, full_address')
+        .select('id, name, email, full_address, contact_number, default_delivery_location')
         .ilike('name', escaped)
         .eq('active', true);
       const match = (matches ?? []).find(
@@ -134,17 +138,27 @@ export async function POST(req: NextRequest) {
       if (match) {
         directoryId = match.id;
         companyEmail = match.email ?? null;
+        if (match.default_delivery_location) companyLocation = match.default_delivery_location;
+        // Seed any empty company fields from the order snapshots (never overwrite team-edited values).
         const patch: Record<string, unknown> = {};
         if (!match.email && o.customer_email) { patch.email = o.customer_email; companyEmail = o.customer_email; }
         if (!match.full_address && o.customer_address) patch.full_address = o.customer_address;
+        if (!match.contact_number && o.customer_phone) patch.contact_number = o.customer_phone;
+        if (!match.default_delivery_location && o.destination_manual) { patch.default_delivery_location = o.destination_manual; companyLocation = o.destination_manual; }
         if (Object.keys(patch).length > 0) await admin.from('customer_directory').update(patch).eq('id', match.id);
       } else {
         const { data: created } = await admin
           .from('customer_directory')
-          .insert({ name: companyName, email: o.customer_email ?? null, full_address: o.customer_address ?? null })
-          .select('id, email')
+          .insert({
+            name: companyName,
+            email: o.customer_email ?? null,
+            full_address: o.customer_address ?? null,
+            contact_number: o.customer_phone ?? null,
+            default_delivery_location: o.destination_manual ?? null,
+          })
+          .select('id, email, default_delivery_location')
           .single();
-        if (created) { directoryId = created.id; companyEmail = created.email ?? null; }
+        if (created) { directoryId = created.id; companyEmail = created.email ?? null; companyLocation = created.default_delivery_location ?? companyLocation; }
       }
       if (directoryId) await admin.from('orders').update({ customer_id: directoryId }).eq('id', o.id);
     }
@@ -157,6 +171,7 @@ export async function POST(req: NextRequest) {
         customer_name: resolveCustomer(o),
         customer_directory_id: directoryId,
         customer_email: companyEmail,
+        delivery_location: companyLocation,
         receive_auto_emails: true,
         notes: `From order ${o.order_ref}`,
         sort_order: assigned.length,

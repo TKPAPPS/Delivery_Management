@@ -82,19 +82,27 @@ export async function sendStatusCustomerEmails(
       };
       const subject = render(template.subject, vars);
       const body = render(template.body, vars);
-      const recipient = r.customer_email!.trim();
+      // A customer's email field can hold several addresses (e.g. from Odoo: "a@x.com, b@y.com").
+      // Split on commas/semicolons/whitespace and send to all of them.
+      const addresses = (r.customer_email ?? '')
+        .split(/[,;\s]+/)
+        .map((a) => a.trim())
+        .filter((a) => a.includes('@'));
+      const recipient = addresses.join(', ') || (r.customer_email ?? '').trim();
 
       let sendStatus: 'sent' | 'failed' | 'skipped' = 'skipped';
       let error: string | null = null;
 
-      if (!resendKey || !resendFrom) {
+      if (addresses.length === 0) {
+        error = 'No valid email address';
+      } else if (!resendKey || !resendFrom) {
         error = 'Resend not configured (RESEND_API_KEY / RESEND_FROM_EMAIL missing)';
       } else {
         try {
           const res = await fetch('https://api.resend.com/emails', {
             method: 'POST',
             headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ from: resendFrom, to: [recipient], subject, text: body }),
+            body: JSON.stringify({ from: resendFrom, to: addresses, subject, text: body }),
           });
           if (res.ok) {
             sendStatus = 'sent';

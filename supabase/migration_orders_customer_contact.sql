@@ -3,3 +3,4 @@
 -- converted to a draft delivery. No customer is created at sync time.
 alter table orders add column if not exists customer_email text;
 alter table orders add column if not exists customer_address text;
+alter table orders add column if not exists customer_phone text;

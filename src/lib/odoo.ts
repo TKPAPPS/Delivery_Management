@@ -30,6 +30,8 @@ export interface OdooProduct {
 export interface OdooPartner {
   id: number;
   email: string | false;
+  phone: string | false;
+  mobile: string | false;
   street: string | false;
   street2: string | false;
   city: string | false;

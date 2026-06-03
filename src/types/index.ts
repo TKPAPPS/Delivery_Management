@@ -237,6 +237,7 @@ export interface Order {
   customer_name_manual: string | null;
   customer_email: string | null;
   customer_address: string | null;
+  customer_phone: string | null;
   destination_id: string | null;
   destination_manual: string | null;
   priority: number;

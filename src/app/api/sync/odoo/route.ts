@@ -1,4 +1,7 @@
 export const runtime = 'nodejs';
+// Sync iterates all confirmed orders sequentially; give it room so it doesn't get killed
+// mid-run (which left logs stuck "running"). Capped by the Vercel plan's max.
+export const maxDuration = 300;
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser, createSupabaseAdminClient } from '@/lib/supabase-server';
@@ -126,12 +129,22 @@ export async function POST(req: NextRequest) {
 
   const admin = createSupabaseAdminClient();
 
-  // Reject if a sync is already running (within last 10 minutes)
+  const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+
+  // Mark older "running" logs as failed — they were killed mid-run (e.g. function timeout) and
+  // never wrote a result, so they'd otherwise sit "running" forever.
+  await admin
+    .from('odoo_sync_logs')
+    .update({ status: 'failed', finished_at: new Date().toISOString(), error: 'Timed out or interrupted (auto-closed)' })
+    .eq('status', 'running')
+    .lt('started_at', tenMinAgo);
+
+  // Reject if a sync is genuinely running (started within the last 10 minutes)
   const { data: runningSyncs } = await admin
     .from('odoo_sync_logs')
     .select('id')
     .eq('status', 'running')
-    .gte('started_at', new Date(Date.now() - 10 * 60 * 1000).toISOString())
+    .gte('started_at', tenMinAgo)
     .limit(1);
   if ((runningSyncs ?? []).length > 0) {
     return NextResponse.json({ error: 'A sync is already running' }, { status: 409 });
@@ -203,14 +216,16 @@ export async function POST(req: NextRequest) {
             .filter((id): id is number => id !== null),
         ),
       );
-      const partnerMap = new Map<number, { email: string | null; address: string | null }>();
+      const partnerMap = new Map<number, { email: string | null; phone: string | null; address: string | null }>();
       if (partnerIds.length > 0) {
         const partners = (await odooExecuteKw(uid, 'res.partner', 'read', [partnerIds], {
-          fields: ['id', 'email', 'street', 'street2', 'city', 'zip'],
+          fields: ['id', 'email', 'phone', 'mobile', 'street', 'street2', 'city', 'zip'],
         })) as OdooPartner[];
+        const str = (v: string | false) => (typeof v === 'string' && v.trim() ? v.trim() : null);
         for (const p of partners) {
           partnerMap.set(p.id, {
-            email: typeof p.email === 'string' && p.email.trim() ? p.email.trim() : null,
+            email: str(p.email),
+            phone: str(p.phone) ?? str(p.mobile),
             address: composeAddress(p),
           });
         }
@@ -235,6 +250,7 @@ export async function POST(req: NextRequest) {
           const partner = partnerId != null ? partnerMap.get(partnerId) : null;
           const customerEmail = partner?.email ?? null;
           const customerAddress = partner?.address ?? null;
+          const customerPhone = partner?.phone ?? null;
           const destinationName = Array.isArray(odooOrder.partner_shipping_id)
             ? odooOrder.partner_shipping_id[1]
             : null;
@@ -267,6 +283,7 @@ export async function POST(req: NextRequest) {
                 customer_name_manual: customerName,
                 customer_email: customerEmail,
                 customer_address: customerAddress,
+                customer_phone: customerPhone,
                 destination_manual: destinationName,
                 notes,
                 order_date: orderDate,
@@ -285,6 +302,7 @@ export async function POST(req: NextRequest) {
                 customer_name_manual: customerName,
                 customer_email: customerEmail,
                 customer_address: customerAddress,
+                customer_phone: customerPhone,
                 destination_manual: destinationName,
                 notes,
                 order_date: orderDate,
