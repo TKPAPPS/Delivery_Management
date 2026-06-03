@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Dates are YYYY-MM-DD.
 
 ## 2026-06-03
 
+### UX
+- Dates are now displayed as **dd/mm/yyyy** app-wide (`formatDate`/`formatDateTime` → en-GB; also
+  fixed `formatDateTime` silently dropping the time). Applied to customer emails + summaries too.
+- Added a **"Sync from Odoo"** button on the Orders Pool (admin only) — triggers the read-only sync
+  and refreshes the list.
+
 ### Odoo customers get an email (so automatic customer emails work)
 
 - Odoo sync now snapshots the partner's **email + address** onto the order (`orders.customer_email`,

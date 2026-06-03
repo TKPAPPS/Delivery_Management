@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Plus, Search, X, Truck, ExternalLink } from 'lucide-react';
+import { Plus, Search, X, Truck, ExternalLink, RefreshCw } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import CreateOrderModal from '@/components/orders/CreateOrderModal';
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
@@ -68,6 +68,31 @@ export default function OrdersPoolClient({ initialOrders, role }: Props) {
   const [sourceFilter, setSourceFilter] = useState('');
 
   const canWrite = ['admin', 'sales'].includes(role);
+  const isAdmin = role === 'admin';
+  const [syncing, setSyncing] = useState(false);
+
+  // Pull fresh orders from Odoo (admin only). Read-only import; refreshes the list on success.
+  const syncOdoo = async () => {
+    setSyncing(true);
+    try {
+      const res = await fetch('/api/sync/odoo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        addToast(data.error || 'Odoo sync failed', 'error');
+        return;
+      }
+      addToast(`Odoo sync done: ${data.created_count ?? 0} new, ${data.updated_count ?? 0} updated`, 'success');
+      router.refresh();
+    } catch {
+      addToast('Odoo sync failed', 'error');
+    } finally {
+      setSyncing(false);
+    }
+  };
   const canDispatch = ['admin', 'sales', 'logistics'].includes(role);
   const addToast = useToastStore((s) => s.addToast);
 
@@ -167,11 +192,18 @@ export default function OrdersPoolClient({ initialOrders, role }: Props) {
           <h1 className="text-xl font-bold text-slate-900">Orders Pool</h1>
           <p className="text-sm text-slate-500 mt-0.5">{filtered.length} order{filtered.length !== 1 ? 's' : ''}</p>
         </div>
-        {canWrite && (
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="w-4 h-4" /> New Order
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {isAdmin && (
+            <Button variant="outline" onClick={syncOdoo} loading={syncing}>
+              <RefreshCw className="w-4 h-4" /> Sync from Odoo
+            </Button>
+          )}
+          {canWrite && (
+            <Button onClick={() => setCreateOpen(true)}>
+              <Plus className="w-4 h-4" /> New Order
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Filters */}

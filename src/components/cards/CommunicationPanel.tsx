@@ -7,7 +7,7 @@ import Modal from '@/components/ui/Modal';
 import Select from '@/components/ui/Select';
 import { MessageSquare, Mail, Send, FileText, CheckCircle, XCircle, MinusCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { useToastStore } from '@/store/toastStore';
-import { formatDateTime } from '@/lib/utils';
+import { formatDate, formatDateTime } from '@/lib/utils';
 
 interface CommunicationPanelProps {
   card: DeliveryCard;
@@ -45,7 +45,7 @@ export default function CommunicationPanel({ card, customers }: CommunicationPan
       .catch(() => {});
   }, [card.id]);
 
-  const defaultLineMessage = `Delivery ${card.delivery_ref} — ${card.destination}${card.planned_date ? `\nPlanned: ${card.planned_date}` : ''}\nStatus: ${card.status}`;
+  const defaultLineMessage = `Delivery ${card.delivery_ref} — ${card.destination}${card.planned_date ? `\nPlanned: ${formatDate(card.planned_date)}` : ''}\nStatus: ${card.status}`;
 
   const openLine = () => {
     setLineForm({ group_id: lineGroups[0]?.id ?? '', message: defaultLineMessage });

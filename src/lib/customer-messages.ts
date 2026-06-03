@@ -1,4 +1,5 @@
 import { createSupabaseAdminClient } from './supabase-server';
+import { formatDate } from './utils';
 import type { DeliveryStatus } from '@/types';
 
 /**
@@ -77,7 +78,7 @@ export async function sendStatusCustomerEmails(
         driver_phone: driverPhone,
         destination: card.destination ?? '',
         delivery_ref: card.delivery_ref ?? '',
-        planned_date: card.planned_date ?? '',
+        planned_date: card.planned_date ? formatDate(card.planned_date) : '',
       };
       const subject = render(template.subject, vars);
       const body = render(template.body, vars);

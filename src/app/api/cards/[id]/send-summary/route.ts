@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser, createSupabaseAdminClient } from '@/lib/supabase-server';
 import { parseBody } from '@/lib/parse-body';
 import { logActivity, ACTIONS } from '@/lib/activity';
+import { formatDate } from '@/lib/utils';
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const ctx = await getSessionUser();
@@ -171,7 +172,7 @@ function buildSummaryText(
   lines.push(`Destination:  ${card.destination}`);
   lines.push(`Status:       ${card.status}`);
   lines.push(`Priority:     ${card.priority}`);
-  if (card.planned_date) lines.push(`Planned Date: ${card.planned_date}`);
+  if (card.planned_date) lines.push(`Planned Date: ${formatDate(card.planned_date)}`);
   lines.push(``);
 
   // Logistics section

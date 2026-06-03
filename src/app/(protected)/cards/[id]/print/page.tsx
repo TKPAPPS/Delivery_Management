@@ -67,7 +67,7 @@ export default async function PrintPage({ params }: { params: { id: string } }) 
               )}
             </div>
             <div className="text-right text-xs text-slate-400">
-              <p>Printed: {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+              <p>Printed: {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
               {card.priority === 'urgent' && (
                 <p className="text-red-600 font-bold text-sm mt-1">⚠ URGENT</p>
               )}
