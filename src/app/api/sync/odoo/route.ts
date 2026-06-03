@@ -125,7 +125,7 @@ export async function POST(req: NextRequest) {
 
   const parsed = await parseBody(req);
   if ('error' in parsed) return parsed.error;
-  const { since } = parsed.data as { since?: string };
+  const { since, full } = parsed.data as { since?: string; full?: boolean };
 
   const admin = createSupabaseAdminClient();
 
@@ -169,8 +169,27 @@ export async function POST(req: NextRequest) {
   try {
     const uid = await odooAuthenticate();
 
+    // Incremental window: an explicit `since` wins; otherwise default to just before the last
+    // successful sync (1h overlap to catch edge writes). `full: true` forces a complete pull.
+    // First run (no completed sync yet) also pulls everything.
+    let effectiveSince: string | null = since ?? null;
+    if (!effectiveSince && !full) {
+      const { data: lastOk } = await admin
+        .from('odoo_sync_logs')
+        .select('started_at')
+        .eq('status', 'completed')
+        .order('started_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (lastOk?.started_at) {
+        effectiveSince = new Date(new Date(lastOk.started_at).getTime() - 60 * 60 * 1000).toISOString();
+      }
+    }
+    // Odoo wants 'YYYY-MM-DD HH:MM:SS' (UTC, no zone marker).
+    const odooSince = effectiveSince ? new Date(effectiveSince).toISOString().slice(0, 19).replace('T', ' ') : null;
+
     const domain: unknown[] = [['state', 'in', [...ODOO_SYNC_STATES]]];
-    if (since) domain.push(['write_date', '>=', since]);
+    if (odooSince) domain.push(['write_date', '>=', odooSince]);
 
     const odooOrders = (await odooExecuteKw(uid, 'sale.order', 'search_read', [domain], {
       fields: ['id', 'name', 'partner_id', 'partner_shipping_id', 'note', 'date_order'],
@@ -248,6 +267,19 @@ export async function POST(req: NextRequest) {
         linesByOrderId.get(oid)!.push(line);
       }
 
+      // Pre-fetch existing orders by ref in ONE query (was a SELECT per order).
+      const existingByRef = new Map<string, string>();
+      {
+        const { data: existingOrders } = await admin
+          .from('orders')
+          .select('id, odoo_order_ref')
+          .in('odoo_order_ref', odooOrders.map((o) => o.name))
+          .is('deleted_at', null);
+        for (const eo of (existingOrders ?? []) as { id: string; odoo_order_ref: string | null }[]) {
+          if (eo.odoo_order_ref) existingByRef.set(eo.odoo_order_ref, eo.id);
+        }
+      }
+
       for (const odooOrder of odooOrders) {
         try {
           const customerName = Array.isArray(odooOrder.partner_id)
@@ -271,12 +303,8 @@ export async function POST(req: NextRequest) {
             if (!isNaN(parsed.getTime())) orderDate = parsed.toISOString();
           }
 
-          const { data: existing } = await admin
-            .from('orders')
-            .select('id')
-            .eq('odoo_order_ref', odooOrder.name)
-            .is('deleted_at', null)
-            .maybeSingle();
+          const existingId = existingByRef.get(odooOrder.name);
+          const existing = existingId ? { id: existingId } : null;
 
           let orderId: string;
 

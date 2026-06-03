@@ -84,12 +84,13 @@ export default function SyncTrigger({ configured, configStatus, initialLogs }: P
   const [lastResult, setLastResult] = useState<SyncResult | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const handleSync = async () => {
+  const handleSync = async (full = false) => {
     setSyncing(true);
     setLastResult(null);
     try {
-      const body: Record<string, string> = {};
-      if (since.trim()) body.since = since.trim();
+      const body: Record<string, unknown> = {};
+      if (full) body.full = true;
+      else if (since.trim()) body.since = since.trim();
       const res = await fetch('/api/sync/odoo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -143,15 +144,22 @@ export default function SyncTrigger({ configured, configStatus, initialLogs }: P
               className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={syncing || !configured}
             />
-            <p className="text-xs text-slate-400 mt-1">Leave blank to sync all confirmed orders</p>
+            <p className="text-xs text-slate-400 mt-1">Leave blank to sync orders changed since the last sync. Use Full resync to re-pull everything.</p>
           </div>
           <Button
-            onClick={handleSync}
+            onClick={() => handleSync(false)}
             loading={syncing}
             disabled={!configured}
           >
             <RefreshCw className="w-4 h-4" />
             {syncing ? 'Syncing…' : 'Sync Now'}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => handleSync(true)}
+            disabled={syncing || !configured}
+          >
+            Full resync
           </Button>
         </div>
 
