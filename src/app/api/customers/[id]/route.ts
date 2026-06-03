@@ -3,6 +3,38 @@ import { getSessionUser, createSupabaseAdminClient } from '@/lib/supabase-server
 import { logActivity, ACTIONS } from '@/lib/activity';
 import { parseBody } from '@/lib/parse-body';
 
+type Admin = ReturnType<typeof createSupabaseAdminClient>;
+
+/**
+ * Soft-delete a card once its last customer has left (consolidation). Recoverable from
+ * History → Deleted. Only active-pipeline cards are discarded; delivered/archived/already-deleted
+ * are left alone. Returns true if it discarded the card.
+ */
+async function discardCardIfEmpty(admin: Admin, cardId: string | null, userId: string): Promise<boolean> {
+  if (!cardId) return false;
+  const { count } = await admin
+    .from('delivery_customers')
+    .select('id', { count: 'exact', head: true })
+    .eq('delivery_card_id', cardId);
+  if ((count ?? 0) > 0) return false;
+
+  const { data: card } = await admin
+    .from('delivery_cards')
+    .select('status, is_archived, deleted_at')
+    .eq('id', cardId)
+    .single();
+  if (!card || card.deleted_at || card.is_archived || card.status === 'delivered') return false;
+
+  const { error } = await admin
+    .from('delivery_cards')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', cardId);
+  if (error) return false;
+
+  await logActivity(cardId, userId, ACTIONS.CARD_DELETED, { reason: 'auto_discarded_empty' });
+  return true;
+}
+
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const ctx = await getSessionUser();
   if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -37,7 +69,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         target_card_id,
       });
 
-      return NextResponse.json({ success: true });
+      const discarded = await discardCardIfEmpty(admin, customer.delivery_card_id, user.id);
+      return NextResponse.json({ success: true, source_card_discarded: discarded });
     }
 
     if (action === 'create_card' && new_destination) {
@@ -56,7 +89,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         new_card_id: newCard.id,
       });
 
-      return NextResponse.json({ success: true, newCardId: newCard.id });
+      const discarded = await discardCardIfEmpty(admin, customer.delivery_card_id, user.id);
+      return NextResponse.json({ success: true, newCardId: newCard.id, source_card_discarded: discarded });
     }
 
     // Planning Queue is unified with draft cards: unloading a customer now spins off
@@ -87,7 +121,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       new_card_id: queueCard.id,
     });
 
-    return NextResponse.json({ success: true, newCardId: queueCard.id });
+    const discarded = await discardCardIfEmpty(admin, customer.delivery_card_id, user.id);
+    return NextResponse.json({ success: true, newCardId: queueCard.id, source_card_discarded: discarded });
   }
 
   const updateData: Record<string, unknown> = {};
@@ -131,5 +166,6 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     customer_name: customer.customer_name,
   });
 
-  return NextResponse.json({ success: true });
+  const discarded = await discardCardIfEmpty(admin, customer.delivery_card_id, user.id);
+  return NextResponse.json({ success: true, source_card_discarded: discarded });
 }

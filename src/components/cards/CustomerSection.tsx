@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import type { CustomerWithRelations, DeliveryCard } from '@/types';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
@@ -32,6 +33,7 @@ interface CustomerSectionProps {
 
 export default function CustomerSection({ customers, card, activeCards, onRefresh }: CustomerSectionProps) {
   const addToast = useToastStore((s) => s.addToast);
+  const router = useRouter();
   const [expanded, setExpanded] = useState<string | null>(customers[0]?.id ?? null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [partialId, setPartialId] = useState<string | null>(null);
@@ -52,6 +54,12 @@ export default function CustomerSection({ customers, card, activeCards, onRefres
       const res = await fetch(`/api/customers/${deleteId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete customer');
       addToast('Customer removed', 'success');
+      const data = await res.json().catch(() => ({}));
+      if (data.source_card_discarded) {
+        addToast('Empty card discarded (restorable in History → Deleted)', 'info' as 'success');
+        router.push('/board');
+        return;
+      }
       onRefresh();
     } catch {
       addToast('Failed to remove customer', 'error');

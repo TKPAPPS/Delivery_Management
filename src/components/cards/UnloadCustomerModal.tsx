@@ -70,11 +70,14 @@ export default function UnloadCustomerModal({
       if (!res.ok) throw new Error('Failed to unload customer');
       const resData = await res.json();
       addToast('Customer unloaded', 'success');
+      if (resData.source_card_discarded) {
+        addToast('Empty card discarded (restorable in History → Deleted)', 'info' as 'success');
+      }
       onDone();
       onClose();
-      if (resData.newCardId) {
-        router.push(`/cards/${resData.newCardId}`);
-      }
+      // Follow the customer to its new home: a freshly-created card, or the move target.
+      const goTo = resData.newCardId ?? (action === 'move_to_card' ? targetCardId : null);
+      if (goTo) router.push(`/cards/${goTo}`);
     } catch {
       addToast('Failed to unload customer', 'error');
     } finally {
