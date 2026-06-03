@@ -225,7 +225,8 @@ export async function POST(req: NextRequest) {
         for (const p of partners) {
           partnerMap.set(p.id, {
             email: str(p.email),
-            phone: str(p.phone) ?? str(p.mobile),
+            // Prefer mobile; `phone` is the landline (rarely used) and is only a fallback.
+            phone: str(p.mobile) ?? str(p.phone),
             address: composeAddress(p),
           });
         }
