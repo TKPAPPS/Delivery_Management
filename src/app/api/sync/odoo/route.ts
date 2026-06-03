@@ -280,7 +280,11 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      for (const odooOrder of odooOrders) {
+      // Process orders in small concurrent batches so a full sync finishes well within the
+      // function limit (sequential per-order round-trips were timing out).
+      const CONCURRENCY = 8;
+      for (let start = 0; start < odooOrders.length; start += CONCURRENCY) {
+        await Promise.all(odooOrders.slice(start, start + CONCURRENCY).map(async (odooOrder) => {
         try {
           const customerName = Array.isArray(odooOrder.partner_id)
             ? odooOrder.partner_id[1]
@@ -358,6 +362,7 @@ export async function POST(req: NextRequest) {
             reason: err instanceof Error ? err.message : String(err),
           });
         }
+        }));
       }
     }
 
