@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { RefreshCw, ChevronDown, ChevronRight, Check, X, Clock } from 'lucide-react';
+import { RefreshCw, ChevronDown, ChevronRight, Check, X, Clock, ListChecks } from 'lucide-react';
 import Button from '@/components/ui/Button';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useToastStore } from '@/store/toastStore';
 import { formatDateTime } from '@/lib/utils';
 import type { OdooSyncLog, OdooSyncErrorEntry } from '@/types';
@@ -23,6 +24,16 @@ interface SyncResult {
   skipped_count: number;
   error_count: number;
   duration_ms: number;
+}
+
+interface ReconcileResult {
+  pending_total: number;
+  checked: number;
+  not_found: number;
+  handled: number;
+  deleted: number;
+  dry_run: boolean;
+  handled_sample: string[];
 }
 
 interface Props {
@@ -83,6 +94,33 @@ export default function SyncTrigger({ configured, configStatus, initialLogs }: P
   const [since, setSince] = useState('');
   const [lastResult, setLastResult] = useState<SyncResult | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [reconciling, setReconciling] = useState(false);
+  const [reconcileResult, setReconcileResult] = useState<ReconcileResult | null>(null);
+  const [confirmReconcile, setConfirmReconcile] = useState(false);
+
+  const runReconcile = async (dryRun: boolean) => {
+    setReconciling(true);
+    try {
+      const res = await fetch('/api/sync/odoo/reconcile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dry_run: dryRun }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Reconcile failed');
+      setReconcileResult(data as ReconcileResult);
+      if (dryRun) {
+        addToast(`Preview: ${data.handled} of ${data.pending_total} open orders are already handled in Odoo`, 'success');
+      } else {
+        addToast(`Removed ${data.deleted} already-handled order${data.deleted === 1 ? '' : 's'} from the pool`, 'success');
+        router.refresh();
+      }
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Reconcile failed', 'error');
+    } finally {
+      setReconciling(false);
+    }
+  };
 
   const handleSync = async (full = false) => {
     setSyncing(true);
@@ -186,6 +224,61 @@ export default function SyncTrigger({ configured, configStatus, initialLogs }: P
         )}
       </div>
 
+      {/* Reconcile open orders against Odoo */}
+      <div className="bg-white border border-slate-200 rounded-xl p-5">
+        <h2 className="text-sm font-semibold text-slate-900 mb-1 flex items-center gap-2">
+          <ListChecks className="w-4 h-4 text-slate-500" /> Reconcile open orders
+        </h2>
+        <p className="text-xs text-slate-500 mb-4 max-w-2xl">
+          Re-checks every order still sitting in the pool against Odoo and removes the ones already
+          <span className="font-medium"> invoiced (delivery done) or cancelled</span>. Soft-delete only —
+          removed orders are recoverable. Run <span className="font-medium">Preview</span> first to see how many would go.
+        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            variant="outline"
+            onClick={() => runReconcile(true)}
+            loading={reconciling}
+            disabled={!configured}
+          >
+            <ListChecks className="w-4 h-4" /> Preview (dry run)
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => setConfirmReconcile(true)}
+            disabled={reconciling || !configured}
+          >
+            Reconcile now
+          </Button>
+        </div>
+
+        {reconcileResult && (
+          <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200 text-sm">
+            <p className="font-medium text-slate-800 mb-2">
+              {reconcileResult.dry_run ? 'Preview' : 'Reconcile'} result
+            </p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+              {[
+                { label: 'Open checked', value: reconcileResult.pending_total },
+                { label: 'Not found in Odoo', value: reconcileResult.not_found },
+                { label: reconcileResult.dry_run ? 'Would remove' : 'Removed', value: reconcileResult.dry_run ? reconcileResult.handled : reconcileResult.deleted },
+                { label: 'Remaining open', value: Math.max(0, reconcileResult.pending_total - (reconcileResult.dry_run ? reconcileResult.handled : reconcileResult.deleted)) },
+              ].map(({ label, value }) => (
+                <div key={label} className="bg-white rounded-lg p-2 border border-slate-100">
+                  <p className="text-xs text-slate-500">{label}</p>
+                  <p className="text-lg font-bold text-slate-800">{value}</p>
+                </div>
+              ))}
+            </div>
+            {reconcileResult.handled_sample?.length > 0 && (
+              <p className="text-xs text-slate-400 mt-3 font-mono break-words">
+                e.g. {reconcileResult.handled_sample.join(', ')}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Sync log history */}
       <div className="bg-white border border-slate-200 rounded-xl">
         <h2 className="text-sm font-semibold text-slate-900 px-5 py-4 border-b border-slate-100">
@@ -273,6 +366,20 @@ export default function SyncTrigger({ configured, configStatus, initialLogs }: P
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmReconcile}
+        onClose={() => setConfirmReconcile(false)}
+        onConfirm={() => { setConfirmReconcile(false); void runReconcile(false); }}
+        title="Reconcile open orders?"
+        message={
+          reconcileResult?.dry_run
+            ? `This will remove ${reconcileResult.handled} already-handled order(s) from the pool (soft-delete, recoverable).`
+            : 'This removes every open order that is already invoiced or cancelled in Odoo (soft-delete, recoverable). Run Preview first if you want a count.'
+        }
+        confirmLabel="Reconcile now"
+        loading={reconciling}
+      />
     </div>
   );
 }
