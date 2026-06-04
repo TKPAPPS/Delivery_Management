@@ -10,6 +10,7 @@ import {
   odooConfigured,
   odooAuthenticate,
   odooExecuteKw,
+  isOrderHandledInOdoo,
   ODOO_SYNC_STATES,
 } from '@/lib/odoo';
 import type { OdooSaleOrder, OdooOrderLine, OdooProduct, OdooPartner } from '@/lib/odoo';
@@ -164,6 +165,10 @@ export async function POST(req: NextRequest) {
   let createdCount = 0;
   let updatedCount = 0;
   let errorCount = 0;
+  // Orders that are already handled in Odoo (invoiced/cancelled): skipped on create,
+  // soft-deleted if they were still sitting as a pending order in our pool.
+  let skippedCount = 0;
+  let closedCount = 0;
   const errorDetails: ErrorEntry[] = [];
 
   try {
@@ -197,7 +202,7 @@ export async function POST(req: NextRequest) {
     if (odooSince) domain.push(['write_date', '>=', odooSince]);
 
     const odooOrders = (await odooExecuteKw(uid, 'sale.order', 'search_read', [domain], {
-      fields: ['id', 'name', 'partner_id', 'partner_shipping_id', 'note', 'date_order'],
+      fields: ['id', 'name', 'partner_id', 'partner_shipping_id', 'note', 'date_order', 'state', 'invoice_status'],
       limit: 0,
     })) as OdooSaleOrder[];
 
@@ -272,16 +277,19 @@ export async function POST(req: NextRequest) {
         linesByOrderId.get(oid)!.push(line);
       }
 
-      // Pre-fetch existing orders by ref in ONE query (was a SELECT per order).
-      const existingByRef = new Map<string, string>();
+      // Pre-fetch existing orders by ref in ONE query (was a SELECT per order). Includes
+      // soft-deleted rows (the odoo_order_ref unique index is NOT partial, so a deleted row
+      // keeps its ref): carries `status` so a now-handled order is only closed while it's an
+      // unstarted `pending` order, and `deleted` so an order that became open again in Odoo
+      // can be resurrected instead of hitting a unique-violation on re-insert.
+      const existingByRef = new Map<string, { id: string; status: string; deleted: boolean }>();
       {
         const { data: existingOrders } = await admin
           .from('orders')
-          .select('id, odoo_order_ref')
-          .in('odoo_order_ref', odooOrders.map((o) => o.name))
-          .is('deleted_at', null);
-        for (const eo of (existingOrders ?? []) as { id: string; odoo_order_ref: string | null }[]) {
-          if (eo.odoo_order_ref) existingByRef.set(eo.odoo_order_ref, eo.id);
+          .select('id, odoo_order_ref, status, deleted_at')
+          .in('odoo_order_ref', odooOrders.map((o) => o.name));
+        for (const eo of (existingOrders ?? []) as { id: string; odoo_order_ref: string | null; status: string; deleted_at: string | null }[]) {
+          if (eo.odoo_order_ref) existingByRef.set(eo.odoo_order_ref, { id: eo.id, status: eo.status, deleted: eo.deleted_at !== null });
         }
       }
 
@@ -312,8 +320,25 @@ export async function POST(req: NextRequest) {
             if (!isNaN(parsed.getTime())) orderDate = parsed.toISOString();
           }
 
-          const existingId = existingByRef.get(odooOrder.name);
-          const existing = existingId ? { id: existingId } : null;
+          const existing = existingByRef.get(odooOrder.name) ?? null;
+          const handled = isOrderHandledInOdoo(odooOrder);
+
+          // Already invoiced/cancelled in Odoo => not an open delivery for us.
+          if (handled) {
+            if (!existing) {
+              // Don't import handled history at all (keeps the pool clean on a full resync).
+              skippedCount++;
+            } else if (!existing.deleted && existing.status === 'pending') {
+              // Soft-delete only while it's still an unstarted pending order; if it's already
+              // on a delivery (assigned/etc.) the normal delivery flow owns its lifecycle, and
+              // if it's already soft-deleted there's nothing to do.
+              const now = new Date().toISOString();
+              await admin.from('orders').update({ deleted_at: now, odoo_sync_log_id: syncLogId }).eq('id', existing.id);
+              await admin.from('order_lines').update({ deleted_at: now }).eq('order_id', existing.id).is('deleted_at', null);
+              closedCount++;
+            }
+            return;
+          }
 
           let orderId: string;
 
@@ -340,19 +365,23 @@ export async function POST(req: NextRequest) {
             orderId = newOrder.id;
             createdCount++;
           } else {
-            const { error } = await admin
-              .from('orders')
-              .update({
-                customer_name_manual: customerName,
-                customer_email: customerEmail,
-                customer_address: customerAddress,
-                customer_phone: customerPhone,
-                destination_manual: destinationName,
-                notes,
-                order_date: orderDate,
-                odoo_sync_log_id: syncLogId,
-              })
-              .eq('id', existing.id);
+            const patch: Record<string, unknown> = {
+              customer_name_manual: customerName,
+              customer_email: customerEmail,
+              customer_address: customerAddress,
+              customer_phone: customerPhone,
+              destination_manual: destinationName,
+              notes,
+              order_date: orderDate,
+              odoo_sync_log_id: syncLogId,
+            };
+            // It was soft-deleted (we'd closed it as handled) but is open again in Odoo:
+            // bring it back as a pending order rather than leaving it stuck deleted.
+            if (existing.deleted) {
+              patch.deleted_at = null;
+              patch.status = 'pending';
+            }
+            const { error } = await admin.from('orders').update(patch).eq('id', existing.id);
             if (error) throw new Error(error.message);
             orderId = existing.id;
             updatedCount++;
@@ -379,11 +408,11 @@ export async function POST(req: NextRequest) {
         fetched_count: fetchedCount,
         created_count: createdCount,
         updated_count: updatedCount,
-        skipped_count: 0,
+        skipped_count: skippedCount,
         error_count: errorCount,
         error_details: errorDetails.length > 0 ? errorDetails : null,
         records_imported: createdCount + updatedCount,
-        records_skipped: 0,
+        records_skipped: skippedCount,
       })
       .eq('id', syncLogId);
 
@@ -392,7 +421,8 @@ export async function POST(req: NextRequest) {
       fetched_count: fetchedCount,
       created_count: createdCount,
       updated_count: updatedCount,
-      skipped_count: 0,
+      skipped_count: skippedCount,
+      closed_count: closedCount,
       error_count: errorCount,
       duration_ms: Date.now() - startTime,
     });

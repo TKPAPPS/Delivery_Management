@@ -11,6 +11,19 @@ export interface OdooSaleOrder {
   partner_shipping_id: [number, string] | false;
   note: string | false;
   date_order: string | false;
+  // Lifecycle signals used to decide whether an order still needs a delivery.
+  // `state` and `invoice_status` exist on every Odoo version.
+  state: string | false;
+  invoice_status: string | false;
+}
+
+/**
+ * An Odoo order is "handled" (no longer an open delivery for us) when it's cancelled,
+ * or fully invoiced. The user confirmed they never invoice before delivery, so
+ * invoice_status='invoiced' reliably implies the goods have shipped.
+ */
+export function isOrderHandledInOdoo(o: Pick<OdooSaleOrder, 'state' | 'invoice_status'>): boolean {
+  return o.state === 'cancel' || o.invoice_status === 'invoiced';
 }
 
 export interface OdooOrderLine {
