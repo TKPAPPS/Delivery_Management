@@ -284,12 +284,19 @@ export async function POST(req: NextRequest) {
       // can be resurrected instead of hitting a unique-violation on re-insert.
       const existingByRef = new Map<string, { id: string; status: string; deleted: boolean }>();
       {
-        const { data: existingOrders } = await admin
-          .from('orders')
-          .select('id, odoo_order_ref, status, deleted_at')
-          .in('odoo_order_ref', odooOrders.map((o) => o.name));
-        for (const eo of (existingOrders ?? []) as { id: string; odoo_order_ref: string | null; status: string; deleted_at: string | null }[]) {
-          if (eo.odoo_order_ref) existingByRef.set(eo.odoo_order_ref, { id: eo.id, status: eo.status, deleted: eo.deleted_at !== null });
+        // Chunk the ref list: a single .in() over all refs would exceed PostgREST's
+        // 1000-row result cap on a full resync, silently dropping existing matches
+        // (which would then look "new" and collide on the unique odoo_order_ref).
+        const allRefs = odooOrders.map((o) => o.name);
+        const REF_CHUNK = 500;
+        for (let i = 0; i < allRefs.length; i += REF_CHUNK) {
+          const { data: existingOrders } = await admin
+            .from('orders')
+            .select('id, odoo_order_ref, status, deleted_at')
+            .in('odoo_order_ref', allRefs.slice(i, i + REF_CHUNK));
+          for (const eo of (existingOrders ?? []) as { id: string; odoo_order_ref: string | null; status: string; deleted_at: string | null }[]) {
+            if (eo.odoo_order_ref) existingByRef.set(eo.odoo_order_ref, { id: eo.id, status: eo.status, deleted: eo.deleted_at !== null });
+          }
         }
       }
 

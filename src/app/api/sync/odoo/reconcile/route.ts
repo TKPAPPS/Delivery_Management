@@ -31,17 +31,25 @@ export async function POST(req: NextRequest) {
 
   const admin = createSupabaseAdminClient();
 
-  // Every order still sitting as an unstarted pending Odoo order in our pool.
-  const { data: pending, error: fetchErr } = await admin
-    .from('orders')
-    .select('id, odoo_order_ref')
-    .eq('source', 'odoo')
-    .eq('status', 'pending')
-    .is('deleted_at', null)
-    .not('odoo_order_ref', 'is', null);
-  if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 500 });
-
-  const rows = (pending ?? []) as { id: string; odoo_order_ref: string }[];
+  // Every order still sitting as an unstarted pending Odoo order in our pool. Paginate:
+  // PostgREST caps a select at 1000 rows, and the backlog is larger than that.
+  const rows: { id: string; odoo_order_ref: string }[] = [];
+  const PAGE = 1000;
+  for (let from = 0; ; from += PAGE) {
+    const { data, error: fetchErr } = await admin
+      .from('orders')
+      .select('id, odoo_order_ref')
+      .eq('source', 'odoo')
+      .eq('status', 'pending')
+      .is('deleted_at', null)
+      .not('odoo_order_ref', 'is', null)
+      .order('id', { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 500 });
+    const batch = (data ?? []) as { id: string; odoo_order_ref: string }[];
+    rows.push(...batch);
+    if (batch.length < PAGE) break;
+  }
   const idByRef = new Map(rows.map((r) => [r.odoo_order_ref, r.id]));
   const refs = Array.from(idByRef.keys());
 
