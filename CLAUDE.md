@@ -399,8 +399,27 @@ Two-pass: read `sale.order.line` fields, then batch read `product.product` for u
 ### Partner contact capture
 Sync also batch-reads `res.partner` (read-only) for each order's `partner_id` — `email`, `street`, `street2`, `city`, `zip` — and snapshots them onto `orders.customer_email` + `orders.customer_address` (a composed one-line address). These are **not** written to the Directory at sync; they seed a `customer_directory` company when the order is converted to a delivery (see Order → Delivery bridge). Used to make automatic customer emails work for Odoo-sourced customers.
 
+### Handled orders (invoiced / cancelled) — keeping the pool to genuinely-open work
+An Odoo order that's **invoiced** (`invoice_status='invoiced'`) or **cancelled** (`state='cancel'`)
+is no longer an open delivery for us — `isOrderHandledInOdoo()` in `src/lib/odoo.ts` encodes this.
+(The business never invoices before delivery, so `invoiced` reliably implies the goods shipped.)
+The sync reads `state` + `invoice_status` and, for handled orders: **skips importing** them entirely
+(keeps a full resync from re-accumulating history), and **soft-deletes** one that's still sitting as
+an unstarted `pending` order. Orders already on a delivery (status past `pending`) are left to the
+delivery flow. The sync reports `skipped_count` (handled, not imported) and `closed_count` (handled
+pending rows soft-deleted).
+
+The `orders_odoo_order_ref_key` unique index is **not partial**, so a soft-deleted order keeps its
+ref reserved. The sync's existing-by-ref prefetch therefore **includes soft-deleted rows** and
+**resurrects** one (clears `deleted_at`, resets to `pending`) if Odoo shows it open again (e.g. a
+credit note flips `invoice_status` back) — otherwise the re-insert would hit a unique violation.
+
+Both the prefetch (`.in()` chunked at 500) and the reconcile fetch (paginated with `.range()`) work
+around PostgREST's **1000-row result cap** — a single unbounded read silently truncates at 1000.
+
 ### Sync route design
-- `POST /api/sync/odoo` — admin only; optional body `{ since?: string }`; 409 if already running; 503 if unconfigured
+- `POST /api/sync/odoo` — admin only; optional body `{ since?: string, full?: boolean }`; 409 if already running; 503 if unconfigured
+- `POST /api/sync/odoo/reconcile` — admin only; body `{ dry_run?: boolean }`. One pass over **every** order still `pending` from Odoo: reads each one's current Odoo status (no `state` filter, so it sees cancellations the incremental domain misses) and **soft-deletes the handled ones**. This clears the historical backlog the incremental sync can't reach. `dry_run` reports counts (`pending_total`, `checked`, `not_found`, `handled`, `deleted`, `handled_sample`) without writing. Surfaced as the "Reconcile open orders" card on `/admin/odoo-sync` (Preview + confirm-gated Reconcile). Reversible (soft-delete). Read-only against Odoo.
 - `GET /api/sync/odoo/logs` — admin only; last 20 `odoo_sync_logs` rows
 
 ## Deployment
@@ -442,7 +461,8 @@ Sync also batch-reads `res.partner` (read-only) for each order's `partner_id` �
 - `src/app/(protected)/orders/page.tsx` — Orders Pool (client page)
 - `src/app/(protected)/orders/[id]/OrderDetailClient.tsx` — order detail (edit, lines, activity)
 - `src/components/orders/CreateOrderModal.tsx` — manual order creation form
-- `src/app/api/sync/odoo/route.ts` — POST sync trigger (admin only)
+- `src/app/api/sync/odoo/route.ts` — POST sync trigger (admin only); skips/soft-deletes handled (invoiced/cancelled) orders
+- `src/app/api/sync/odoo/reconcile/route.ts` — POST reconcile (admin); soft-deletes already-handled orders from the open pool (`dry_run` capable)
 - `src/app/api/sync/odoo/logs/route.ts` — GET sync log history (admin only)
 - `src/app/(admin)/admin/odoo-sync/page.tsx` — Odoo sync admin page
 - `src/components/sync/SyncTrigger.tsx` — sync UI client component
