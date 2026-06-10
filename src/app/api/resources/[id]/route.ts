@@ -10,6 +10,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if ('error' in parsed) return parsed.error;
   const body = parsed.data as Record<string, unknown>;
 
+  // Reject blanking of required fields when they are provided.
+  if (typeof body.name === 'string' && !body.name.trim()) {
+    return NextResponse.json({ error: 'Name cannot be empty' }, { status: 400 });
+  }
+  if (typeof body.url === 'string' && !body.url.trim()) {
+    return NextResponse.json({ error: 'URL cannot be empty' }, { status: 400 });
+  }
+
   // Whitelist editable fields.
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (typeof body.name === 'string') update.name = body.name.trim();

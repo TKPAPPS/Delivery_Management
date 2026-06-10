@@ -129,7 +129,7 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
         body: JSON.stringify({ status: 'in_transit' }),
       });
       if (!res.ok) throw new Error('Failed to dispatch');
-      addToast("Vehicle dispatched — customers emailed the driver's details", 'success');
+      addToast("Vehicle dispatched — customers with email on file are notified with the driver's details", 'success');
       await refresh();
     } catch {
       addToast('Failed to mark as out for delivery', 'error');

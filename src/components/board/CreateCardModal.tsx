@@ -275,9 +275,11 @@ export default function CreateCardModal({ open, onClose, onCreated }: CreateCard
               </div>
             </div>
           ))}
-          <Button type="button" variant="outline" size="sm" onClick={addCustomer} className="mt-1">
-            <Plus className="w-3 h-3" /> Add Another
-          </Button>
+          {!(form.single_customer_lock && customers.length >= 1) && (
+            <Button type="button" variant="outline" size="sm" onClick={addCustomer} className="mt-1">
+              <Plus className="w-3 h-3" /> Add Another
+            </Button>
+          )}
         </div>
 
         <div className="flex gap-3 justify-end pt-2">

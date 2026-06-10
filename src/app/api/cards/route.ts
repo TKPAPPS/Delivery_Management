@@ -131,9 +131,12 @@ export async function POST(req: NextRequest) {
 
   if (error || !card) return NextResponse.json({ error: error?.message ?? 'Failed to create card' }, { status: 500 });
 
-  if (Array.isArray(customers) && customers.length > 0) {
-    for (let i = 0; i < customers.length; i++) {
-      const c = customers[i];
+  // A locked card may hold at most one customer (also enforced by a DB trigger).
+  const customersToAdd = single_customer_lock === true ? (customers ?? []).slice(0, 1) : customers;
+
+  if (Array.isArray(customersToAdd) && customersToAdd.length > 0) {
+    for (let i = 0; i < customersToAdd.length; i++) {
+      const c = customersToAdd[i];
       if (!c.customer_name?.trim()) continue;
       const { data: cust } = await admin
         .from('delivery_customers')
