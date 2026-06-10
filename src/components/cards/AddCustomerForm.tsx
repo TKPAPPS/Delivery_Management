@@ -43,11 +43,14 @@ export default function AddCustomerForm({ cardId, onAdded, onCancel }: AddCustom
           sale_orders: saleOrders.filter((so) => so.trim()),
         }),
       });
-      if (!res.ok) throw new Error('Failed to add customer');
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error ?? 'Failed to add customer');
+      }
       addToast('Customer added', 'success');
       onAdded();
-    } catch {
-      addToast('Failed to add customer', 'error');
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Failed to add customer', 'error');
     } finally {
       setLoading(false);
     }

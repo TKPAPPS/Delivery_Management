@@ -36,6 +36,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     .select('*', { count: 'exact', head: true })
     .eq('delivery_card_id', params.id);
 
+  // Enforce the single-customer lock: once one customer is present, no more may be added.
+  const { data: lockCard } = await admin
+    .from('delivery_cards')
+    .select('single_customer_lock')
+    .eq('id', params.id)
+    .single();
+  if (lockCard?.single_customer_lock && (count ?? 0) >= 1) {
+    return NextResponse.json({ error: 'This vehicle is locked to a single customer' }, { status: 409 });
+  }
+
   const { data: customer, error } = await admin
     .from('delivery_customers')
     .insert({

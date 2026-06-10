@@ -94,13 +94,19 @@ export async function POST(req: NextRequest) {
   const parsed = await parseBody(req);
   if ('error' in parsed) return parsed.error;
   const body = parsed.data as Record<string, unknown>;
-  const { destination, status, planned_date, priority, internal_notes, delivery_method, delivery_type, customers } = body as {
+  const { destination, status, planned_date, priority, loading_priority, single_customer_lock, internal_notes, delivery_method, delivery_type, customers } = body as {
     destination: string; status?: string; planned_date?: string; priority?: string;
+    loading_priority?: number | null; single_customer_lock?: boolean;
     internal_notes?: string; delivery_method?: string; delivery_type?: string;
     customers?: Array<{ customer_name?: string; [key: string]: unknown }>;
   };
 
   if (!destination) return NextResponse.json({ error: 'Destination is required' }, { status: 400 });
+
+  if (loading_priority !== undefined && loading_priority !== null &&
+      (!Number.isInteger(loading_priority) || loading_priority < 1 || loading_priority > 10)) {
+    return NextResponse.json({ error: 'Loading priority must be an integer between 1 and 10' }, { status: 400 });
+  }
 
   const validDeliveryType = delivery_type === 'our_motorcycle' || delivery_type === 'company_motorcycle' ? delivery_type : null;
 
@@ -113,6 +119,8 @@ export async function POST(req: NextRequest) {
       status: status ?? 'draft',
       planned_date: planned_date || null,
       priority: priority ?? 'normal',
+      loading_priority: loading_priority ?? null,
+      single_customer_lock: single_customer_lock === true,
       internal_notes: internal_notes || null,
       delivery_method: delivery_method || 'car',
       delivery_type: validDeliveryType,

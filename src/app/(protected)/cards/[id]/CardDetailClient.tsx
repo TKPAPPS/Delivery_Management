@@ -39,6 +39,7 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
   const [markingDelivered, setMarkingDelivered] = useState(false);
   const [showDeliveredForm, setShowDeliveredForm] = useState(false);
   const [deliveryNotes, setDeliveryNotes] = useState('');
+  const [markingInTransit, setMarkingInTransit] = useState(false);
 
   // Edit mode state
   const [editing, setEditing] = useState(false);
@@ -47,6 +48,8 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
     destination: card.destination,
     planned_date: card.planned_date ?? '',
     priority: card.priority as 'normal' | 'urgent',
+    loading_priority: card.loading_priority != null ? String(card.loading_priority) : '',
+    single_customer_lock: card.single_customer_lock,
     internal_notes: card.internal_notes ?? '',
   });
 
@@ -117,6 +120,24 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
     }
   };
 
+  const handleMarkInTransit = async () => {
+    setMarkingInTransit(true);
+    try {
+      const res = await fetch(`/api/cards/${card.id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'in_transit' }),
+      });
+      if (!res.ok) throw new Error('Failed to dispatch');
+      addToast("Vehicle dispatched — customers emailed the driver's details", 'success');
+      await refresh();
+    } catch {
+      addToast('Failed to mark as out for delivery', 'error');
+    } finally {
+      setMarkingInTransit(false);
+    }
+  };
+
   const handleUnarchive = async () => {
     setUnarchiving(true);
     try {
@@ -142,6 +163,8 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
         destination: editFields.destination,
         planned_date: editFields.planned_date || null,
         priority: editFields.priority,
+        loading_priority: editFields.loading_priority ? Number(editFields.loading_priority) : null,
+        single_customer_lock: editFields.single_customer_lock,
         internal_notes: editFields.internal_notes || null,
       };
       const res = await fetch(`/api/cards/${card.id}`, {
@@ -165,6 +188,8 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
       destination: card.destination,
       planned_date: card.planned_date ?? '',
       priority: card.priority,
+      loading_priority: card.loading_priority != null ? String(card.loading_priority) : '',
+      single_customer_lock: card.single_customer_lock,
       internal_notes: card.internal_notes ?? '',
     });
     setEditing(false);
@@ -194,6 +219,12 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
                 <Badge variant="danger">
                   <AlertTriangle className="w-3 h-3 mr-1" /> Urgent
                 </Badge>
+              )}
+              {!editing && card.loading_priority != null && (
+                <Badge variant="default">Load #{card.loading_priority}</Badge>
+              )}
+              {!editing && card.single_customer_lock && (
+                <Badge variant="default">Single customer</Badge>
               )}
             </div>
 
@@ -225,7 +256,28 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
                       <option value="urgent">Urgent</option>
                     </select>
                   </div>
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Loading priority (1–10)</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={10}
+                      value={editFields.loading_priority}
+                      onChange={(e) => setEditFields((f) => ({ ...f, loading_priority: e.target.value }))}
+                      placeholder="Optional"
+                      className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-crimson-500"
+                    />
+                  </div>
                 </div>
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={editFields.single_customer_lock}
+                    onChange={(e) => setEditFields((f) => ({ ...f, single_customer_lock: e.target.checked }))}
+                    className="rounded border-slate-300 text-crimson-600 focus:ring-crimson-500"
+                  />
+                  Lock to a single customer (no additional customers can be added)
+                </label>
                 <div>
                   <label className="block text-xs font-medium text-slate-500 mb-1">Internal Notes</label>
                   <textarea
@@ -342,6 +394,37 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
         </div>
       </div>
 
+      {/* Booked — dispatch / out for delivery CTA (fires the driver-phone email to customers) */}
+      {card.status === 'booked' && !card.is_archived && (() => {
+        const driverPhone = (card.driver as Driver | null)?.phone ?? card.driver_phone_manual ?? '';
+        const hasPhone = !!driverPhone.trim();
+        return (
+          <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 mb-6">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="font-semibold text-indigo-800 text-sm">Ready to dispatch</p>
+                <p className="text-xs text-indigo-600 mt-0.5">
+                  {hasPhone
+                    ? "Sends the vehicle out and emails the driver's phone to all customers on this vehicle."
+                    : 'Assign a driver with a phone number first so customers can be notified.'}
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleMarkInTransit}
+                loading={markingInTransit}
+                disabled={!hasPhone}
+                title={hasPhone ? undefined : 'Assign a driver with a phone first'}
+                className="flex-shrink-0 border-indigo-400 text-indigo-700 hover:bg-indigo-100 font-semibold"
+              >
+                Mark as Out for Delivery
+              </Button>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Loaded — mark as delivered CTA */}
       {card.status === 'in_transit' && !card.is_archived && (
         <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 mb-6">
@@ -405,11 +488,17 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
       {/* Customers Section */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-3">
-          <div />
+          <div>
+            {card.single_customer_lock && card.customers.length >= 1 && (
+              <span className="text-xs text-slate-500">Locked to one customer</span>
+            )}
+          </div>
           <Button
             variant="outline"
             size="sm"
             onClick={() => setShowAddCustomer((v) => !v)}
+            disabled={card.single_customer_lock && card.customers.length >= 1}
+            title={card.single_customer_lock && card.customers.length >= 1 ? 'This vehicle is locked to a single customer' : undefined}
           >
             <Plus className="w-4 h-4" /> Add Customer
           </Button>

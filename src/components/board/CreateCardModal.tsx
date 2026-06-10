@@ -28,7 +28,7 @@ interface CreateCardModalProps {
   onCreated: () => void;
 }
 
-const EMPTY_FORM = { destination: '', status: 'draft', planned_date: '', priority: 'normal', internal_notes: '', delivery_method: 'car', delivery_type: '' };
+const EMPTY_FORM = { destination: '', status: 'draft', planned_date: '', priority: 'normal', loading_priority: '', single_customer_lock: false, internal_notes: '', delivery_method: 'car', delivery_type: '' };
 const EMPTY_CUSTOMER: InlineCustomer = { customer_name: '', customer_directory_id: null, customer_email: '', receive_auto_emails: true, delivery_location: '', sale_orders: [''] };
 
 export default function CreateCardModal({ open, onClose, onCreated }: CreateCardModalProps) {
@@ -99,6 +99,7 @@ export default function CreateCardModal({ open, onClose, onCreated }: CreateCard
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
+          loading_priority: form.loading_priority ? Number(form.loading_priority) : null,
           customers: customers.filter((c) => c.customer_name.trim()),
         }),
       });
@@ -172,7 +173,25 @@ export default function CreateCardModal({ open, onClose, onCreated }: CreateCard
               { value: 'urgent', label: 'Urgent' },
             ]}
           />
+          <Input
+            label="Loading priority (1–10)"
+            type="number"
+            min={1}
+            max={10}
+            value={form.loading_priority}
+            onChange={(e) => setForm((f) => ({ ...f, loading_priority: e.target.value }))}
+            placeholder="Optional"
+          />
         </div>
+        <label className="flex items-center gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={form.single_customer_lock}
+            onChange={(e) => setForm((f) => ({ ...f, single_customer_lock: e.target.checked }))}
+            className="rounded border-slate-300 text-crimson-600 focus:ring-crimson-500"
+          />
+          Lock to a single customer (no additional customers can be added)
+        </label>
         <DatePicker
           label="Planned Date"
           value={form.planned_date}

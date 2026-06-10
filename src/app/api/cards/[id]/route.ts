@@ -58,7 +58,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   // created_by, created_at, delivered_at) and `status` are intentionally NOT here:
   // status must go through /api/cards/[id]/status so notifications + customer emails fire.
   const ALLOWED_FIELDS = [
-    'destination', 'planned_date', 'priority', 'internal_notes', 'delivery_notes',
+    'destination', 'planned_date', 'priority', 'loading_priority', 'single_customer_lock',
+    'internal_notes', 'delivery_notes',
     'delivery_method', 'delivery_type', 'sort_order', 'is_archived', 'archived_at',
     'driver_id', 'driver_name_manual', 'driver_phone_manual', 'vehicle_type_manual', 'license_plate_manual',
     'courier_company_id', 'courier_company_name', 'tracking_number',
@@ -68,6 +69,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const updateData: Record<string, unknown> = {};
   for (const field of ALLOWED_FIELDS) {
     if (body[field] !== undefined) updateData[field] = body[field];
+  }
+
+  const lp = updateData.loading_priority;
+  if (lp !== undefined && lp !== null && (!Number.isInteger(lp) || (lp as number) < 1 || (lp as number) > 10)) {
+    return NextResponse.json({ error: 'Loading priority must be an integer between 1 and 10' }, { status: 400 });
   }
 
   // Restore (admin only): clearing deleted_at brings a soft-deleted card back. Soft-deleting

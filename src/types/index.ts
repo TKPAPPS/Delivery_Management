@@ -113,6 +113,8 @@ export interface DeliveryCard {
   status: DeliveryStatus;
   status_changed_at: string;
   priority: DeliveryPriority;
+  loading_priority: number | null;
+  single_customer_lock: boolean;
   delivery_method: DeliveryMethod;
   delivery_type: DeliveryType | null;
   sort_order: number;

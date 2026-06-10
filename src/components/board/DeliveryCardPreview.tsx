@@ -52,14 +52,23 @@ export default function DeliveryCardPreview({ card, dragging }: DeliveryCardPrev
         {/* Top row */}
         <div className="flex items-start justify-between gap-2 mb-2">
           <span className="font-mono text-xs text-crimson-700">{card.delivery_ref}</span>
-          {card.priority === 'urgent' && (
-            <Tooltip label="Urgent priority" focusable={false} side="bottom" className="flex-shrink-0">
-              <span className="inline-flex items-center gap-1 bg-crimson-100 text-crimson-700 text-xs px-1.5 py-0.5 rounded-full font-medium">
-                <AlertTriangle className="w-3 h-3" />
-                Urgent
-              </span>
-            </Tooltip>
-          )}
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {card.loading_priority != null && (
+              <Tooltip label={`Loading priority ${card.loading_priority}`} focusable={false} side="bottom">
+                <span className="inline-flex items-center bg-slate-100 text-slate-600 text-xs px-1.5 py-0.5 rounded-full font-medium">
+                  Load #{card.loading_priority}
+                </span>
+              </Tooltip>
+            )}
+            {card.priority === 'urgent' && (
+              <Tooltip label="Urgent priority" focusable={false} side="bottom">
+                <span className="inline-flex items-center gap-1 bg-crimson-100 text-crimson-700 text-xs px-1.5 py-0.5 rounded-full font-medium">
+                  <AlertTriangle className="w-3 h-3" />
+                  Urgent
+                </span>
+              </Tooltip>
+            )}
+          </div>
         </div>
 
         {/* Destination */}
