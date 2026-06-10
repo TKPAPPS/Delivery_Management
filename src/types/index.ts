@@ -29,6 +29,18 @@ export interface Destination {
   updated_at: string;
 }
 
+export interface Resource {
+  id: string;
+  name: string;
+  url: string;
+  description: string | null;
+  category: string;
+  sort_order: number;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface CustomerDirectory {
   id: string;
   name: string;
@@ -400,6 +412,12 @@ export type Database = {
         Row: AppSetting;
         Insert: Pick<AppSetting, 'key'> & Partial<Omit<AppSetting, 'key'>>;
         Update: Partial<AppSetting>;
+        Relationships: [];
+      };
+      resources: {
+        Row: Resource;
+        Insert: Partial<Omit<Resource, 'id' | 'created_at' | 'updated_at'>> & Pick<Resource, 'name' | 'url'>;
+        Update: Partial<Resource>;
         Relationships: [];
       };
     };
