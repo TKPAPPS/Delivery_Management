@@ -12,7 +12,7 @@ import {
   formatDate, formatDateTime,
   orderPriorityLabel, orderPriorityColor,
   orderStatusLabel, orderStatusColor,
-  timeAgo,
+  timeAgo, displayOrderRef,
 } from '@/lib/utils';
 import type { OrderWithLines, OrderLine } from '@/types';
 
@@ -242,7 +242,7 @@ export default function OrderDetailClient({ initialOrder, role }: Props) {
         </Link>
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-xl font-bold font-mono text-slate-900">{order.order_ref}</h1>
+            <h1 className="text-xl font-bold font-mono text-slate-900">{displayOrderRef(order)}</h1>
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${orderStatusColor(order.status)}`}>
                 {orderStatusLabel(order.status)}

@@ -96,6 +96,14 @@ export function orderStatusColor(status: string): string {
   return colors[status] ?? 'bg-gray-100 text-gray-600';
 }
 
+/**
+ * The reference to show for an order. Odoo-sourced orders display their real Odoo
+ * sale-order number (e.g. "S00123"); manual orders fall back to the generated ORD- code.
+ */
+export function displayOrderRef(order: { order_ref: string; odoo_order_ref?: string | null }): string {
+  return order.odoo_order_ref || order.order_ref;
+}
+
 export function timeAgo(dateString: string): string {
   const now = new Date();
   const date = new Date(dateString);

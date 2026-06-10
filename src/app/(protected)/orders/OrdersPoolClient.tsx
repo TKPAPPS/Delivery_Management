@@ -10,7 +10,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { useDebouncedCallback } from '@/lib/useDebouncedCallback';
 import Tooltip from '@/components/ui/Tooltip';
 import { useToastStore } from '@/store/toastStore';
-import { formatDate, orderPriorityLabel, orderPriorityColor, orderStatusLabel, orderStatusColor } from '@/lib/utils';
+import { formatDate, orderPriorityLabel, orderPriorityColor, orderStatusLabel, orderStatusColor, displayOrderRef } from '@/lib/utils';
 import type { OrderListItem } from '@/types';
 
 const STATUS_OPTIONS = [
@@ -315,7 +315,7 @@ export default function OrdersPoolClient({ initialOrders, initialTotal, pageSize
                   )}
                   <td className="px-4 py-3">
                     <Link href={`/orders/${order.id}`} className="font-mono text-xs font-medium text-crimson-700 hover:underline">
-                      {order.order_ref}
+                      {displayOrderRef(order)}
                     </Link>
                   </td>
                   <td className="px-4 py-3 text-slate-800">{resolveCustomer(order)}</td>

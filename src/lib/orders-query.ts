@@ -56,7 +56,7 @@ export async function queryOrdersPage(admin: Admin, opts: OrdersQueryOpts): Prom
       if (term) {
         const like = `*${term}*`;
         query = query.or(
-          `order_ref.ilike.${like},customer_name_manual.ilike.${like},destination_manual.ilike.${like},notes.ilike.${like}`,
+          `order_ref.ilike.${like},odoo_order_ref.ilike.${like},customer_name_manual.ilike.${like},destination_manual.ilike.${like},notes.ilike.${like}`,
         );
       }
     }
