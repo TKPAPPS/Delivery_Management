@@ -1,9 +1,31 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextRequest, NextResponse } from 'next/server';
 
+// The only host humans should operate on in production. The *.vercel.app alias is
+// blocked wholesale by some corporate/ISP web filters, which made one user hit
+// Chrome's "Dangerous site" wall while everyone on the custom domain was fine.
+const CANONICAL_HOST = 'delivery.tkpapps.com';
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const res = NextResponse.next();
+
+  // Canonical-host redirect (production only): push page navigations off the
+  // *.vercel.app alias onto the custom domain. Preview deployments
+  // (VERCEL_ENV='preview') are left alone so they stay testable, and /api/* is
+  // skipped so any host-pinned webhooks (e.g. LINE) keep working. Temporary (307)
+  // so it is never cached permanently — the vercel.app host stays usable as a
+  // fallback if the custom domain ever has DNS trouble.
+  if (process.env.VERCEL_ENV === 'production' && !pathname.startsWith('/api/')) {
+    const host = req.headers.get('host');
+    if (host && host !== CANONICAL_HOST) {
+      const url = req.nextUrl.clone();
+      url.protocol = 'https:';
+      url.host = CANONICAL_HOST;
+      url.port = '';
+      return NextResponse.redirect(url, 307);
+    }
+  }
 
   // If Supabase is not configured, redirect everything to /login so the app
   // loads with a helpful setup message instead of a 500 error.
