@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Columns, History, Users, Truck, ClipboardList, BookUser, Settings, X, Mail, Plane, MessageSquare, ShoppingCart, RefreshCw, LayoutGrid, FileSpreadsheet } from 'lucide-react';
+import { LayoutDashboard, Columns, History, Users, Truck, ClipboardList, BookUser, Settings, X, Mail, Plane, MessageSquare, ShoppingCart, RefreshCw, LayoutGrid } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SidebarProps {
@@ -16,7 +16,6 @@ const mainNav = [
   { href: '/planning-queue', label: 'Planning Queue', icon: ClipboardList },
   { href: '/archive', label: 'History', icon: History },
   { href: '/resources', label: 'Resources', icon: LayoutGrid },
-  { href: '/export', label: 'Export', icon: FileSpreadsheet },
 ];
 
 const adminNav = [
