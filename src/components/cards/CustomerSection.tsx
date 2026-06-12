@@ -182,10 +182,10 @@ export default function CustomerSection({ customers, card, activeCards, onRefres
                 />
                 <Input
                   label="Customer Email"
-                  type="email"
+                  type="text"
                   value={editFields.customer_email}
                   onChange={(e) => setEditFields((f) => ({ ...f, customer_email: e.target.value }))}
-                  placeholder="customer@email.com — for automatic status emails"
+                  placeholder="email(s) — separate multiple with commas"
                 />
                 <label className="flex items-center gap-2 text-xs text-slate-600 select-none">
                   <input

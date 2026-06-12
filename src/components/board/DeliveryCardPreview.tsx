@@ -68,6 +68,18 @@ export default function DeliveryCardPreview({ card, dragging }: DeliveryCardPrev
                 </span>
               </Tooltip>
             )}
+            {card.shipping_type && (
+              <Tooltip label={`Shipping: ${card.shipping_type}`} focusable={false} side="bottom">
+                <span className={cn(
+                  'inline-flex items-center text-xs px-1.5 py-0.5 rounded-full font-medium',
+                  card.shipping_type === 'Frozen' && 'bg-blue-100 text-blue-700',
+                  card.shipping_type === 'Chilled' && 'bg-cyan-100 text-cyan-700',
+                  card.shipping_type === 'Dry' && 'bg-amber-100 text-amber-700',
+                )}>
+                  {card.shipping_type}
+                </span>
+              </Tooltip>
+            )}
           </div>
         </div>
 
@@ -121,6 +133,14 @@ export default function DeliveryCardPreview({ card, dragging }: DeliveryCardPrev
               <span className="truncate">{logisticsLine}</span>
             </span>
           </Tooltip>
+        )}
+
+        {/* Latest comment */}
+        {card._latest_comment?.body && (
+          <div className="flex items-start gap-1 text-xs text-slate-500 italic mb-2">
+            <MessageSquare className="w-3 h-3 flex-shrink-0 mt-0.5 text-slate-400" />
+            <span className="line-clamp-2">{card._latest_comment.body}</span>
+          </div>
         )}
 
         {/* Footer */}

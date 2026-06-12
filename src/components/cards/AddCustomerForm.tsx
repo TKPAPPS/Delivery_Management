@@ -76,8 +76,8 @@ export default function AddCustomerForm({ cardId, onAdded, onCancel }: AddCustom
         }))}
       />
       <Input
-        type="email"
-        placeholder="Customer email (for automatic status emails)"
+        type="text"
+        placeholder="Customer email(s) — separate multiple with commas"
         value={form.customer_email}
         onChange={(e) => setForm((f) => ({ ...f, customer_email: e.target.value }))}
       />

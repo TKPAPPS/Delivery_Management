@@ -133,6 +133,7 @@ export default function BoardClient({ initialCards }: BoardClientProps) {
       .channel('board-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_cards' }, scheduleReload)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_customers' }, scheduleReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, scheduleReload)
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [scheduleReload]);

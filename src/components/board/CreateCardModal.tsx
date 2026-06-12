@@ -234,8 +234,8 @@ export default function CreateCardModal({ open, onClose, onCreated }: CreateCard
                 directory={customerDirectory}
               />
               <Input
-                type="email"
-                placeholder="Customer email (for automatic status emails)"
+                type="text"
+                placeholder="Customer email(s) — separate multiple with commas"
                 value={cust.customer_email}
                 onChange={(e) => patchCustomer(ci, { customer_email: e.target.value })}
               />

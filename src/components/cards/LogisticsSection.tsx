@@ -53,6 +53,8 @@ export default function LogisticsSection({ card, drivers, onUpdated }: Logistics
     driver_phone_manual: card.driver_phone_manual ?? '',
     vehicle_type_manual: card.vehicle_type_manual ?? '',
     license_plate_manual: card.license_plate_manual ?? '',
+    planned_time: card.planned_time ?? '',
+    shipping_type: card.shipping_type ?? '',
     // Post
     courier_company_name: card.courier_company_name ?? '',
     tracking_number: card.tracking_number ?? '',
@@ -81,6 +83,8 @@ export default function LogisticsSection({ card, drivers, onUpdated }: Logistics
     driver_phone_manual: card.driver_phone_manual ?? '',
     vehicle_type_manual: card.vehicle_type_manual ?? '',
     license_plate_manual: card.license_plate_manual ?? '',
+    planned_time: card.planned_time ?? '',
+    shipping_type: card.shipping_type ?? '',
     courier_company_name: card.courier_company_name ?? '',
     tracking_number: card.tracking_number ?? '',
     cargo_company_name: card.cargo_company_name ?? '',
@@ -106,6 +110,11 @@ export default function LogisticsSection({ card, drivers, onUpdated }: Logistics
         driver_phone_manual: form.driver_phone_manual || null,
         vehicle_type_manual: form.vehicle_type_manual || null,
         license_plate_manual: form.license_plate_manual || null,
+        // Time applies to Car/Truck only; shipping type to Car/Truck + Post/Courier.
+        // Force-clear when the method doesn't apply so stale values can't linger.
+        planned_time: (form.delivery_method === 'car' ? form.planned_time || null : null),
+        shipping_type: ((form.delivery_method === 'car' || form.delivery_method === 'post')
+          ? (form.shipping_type || null) : null) as DeliveryCard['shipping_type'],
         // '__manual__' is the dropdown sentinel for "enter manually" — never persist it.
         courier_company_name: cleanName(form.courier_company_name),
         tracking_number: form.tracking_number || null,
@@ -238,6 +247,8 @@ function ReadView({ card, drivers, method, hasDetails, onEdit }: {
         <Row label="Phone" value={driverPhone} />
         <Row label="Vehicle" value={vehicleType} />
         <Row label="Plate" value={licensePlate} />
+        <Row label="Time" value={card.planned_time?.slice(0, 5)} />
+        <Row label="Shipping" value={card.shipping_type} />
       </div>
     );
   }
@@ -246,6 +257,7 @@ function ReadView({ card, drivers, method, hasDetails, onEdit }: {
       <div className="space-y-1.5">
         <Row label="Courier" value={card.courier_company_name} />
         <Row label="Tracking #" value={card.tracking_number} />
+        <Row label="Shipping" value={card.shipping_type} />
       </div>
     );
   }
@@ -275,10 +287,18 @@ function ReadView({ card, drivers, method, hasDetails, onEdit }: {
 type FormState = {
   delivery_method: string; delivery_type: string; driver_id: string; driver_name_manual: string;
   driver_phone_manual: string; vehicle_type_manual: string; license_plate_manual: string;
+  planned_time: string; shipping_type: string;
   courier_company_name: string; tracking_number: string; cargo_company_name: string;
   mawb_number: string; hawb_number: string; flight_number: string; cargo_etd: string; cargo_eta: string;
   other_method_name: string; other_tracking_ref: string;
 };
+
+const SHIPPING_TYPE_OPTIONS = [
+  { value: '', label: '— Not specified —' },
+  { value: 'Dry', label: 'Dry' },
+  { value: 'Frozen', label: 'Frozen' },
+  { value: 'Chilled', label: 'Chilled' },
+];
 
 function EditForm({ form, setForm, drivers, courierCompanies, cargoCompanies }: {
   form: FormState;
@@ -370,6 +390,10 @@ function EditForm({ form, setForm, drivers, courierCompanies, cargoCompanies }: 
               </div>
             </>
           )}
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Time" type="time" value={form.planned_time} onChange={f('planned_time')} />
+            <Select label="Shipping Type" value={form.shipping_type} onChange={f('shipping_type')} options={SHIPPING_TYPE_OPTIONS} />
+          </div>
         </>
       )}
 
@@ -391,6 +415,7 @@ function EditForm({ form, setForm, drivers, courierCompanies, cargoCompanies }: 
             <Input label="Courier Name" value={form.courier_company_name === '__manual__' ? '' : form.courier_company_name} onChange={f('courier_company_name')} placeholder="e.g. Kerry Express" />
           )}
           <Input label="Tracking Number" value={form.tracking_number} onChange={f('tracking_number')} placeholder="e.g. TH123456789" />
+          <Select label="Shipping Type" value={form.shipping_type} onChange={f('shipping_type')} options={SHIPPING_TYPE_OPTIONS} />
         </>
       )}
 

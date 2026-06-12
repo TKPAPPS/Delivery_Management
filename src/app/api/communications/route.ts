@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser, createSupabaseAdminClient } from '@/lib/supabase-server';
 import { parseBody } from '@/lib/parse-body';
 import { pushLineMessage } from '@/lib/line';
+import { parseEmailList } from '@/lib/utils';
 
 export async function GET(req: NextRequest) {
   const ctx = await getSessionUser();
@@ -95,7 +96,11 @@ export async function POST(req: NextRequest) {
     } else if (!recipient) {
       error = 'No recipient address provided';
       status = 'skipped';
+    } else if (parseEmailList(recipient).valid.length === 0) {
+      error = 'No valid recipient address provided';
+      status = 'skipped';
     } else {
+      const { valid: toAddresses } = parseEmailList(recipient);
       try {
         const res = await fetch('https://api.resend.com/emails', {
           method: 'POST',
@@ -105,7 +110,7 @@ export async function POST(req: NextRequest) {
           },
           body: JSON.stringify({
             from: fromEmail,
-            to: [recipient],
+            to: toAddresses,
             subject: subject ?? 'Delivery Update',
             text: messageBody ?? '',
           }),

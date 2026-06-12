@@ -62,14 +62,19 @@ export async function GET(req: NextRequest) {
   // Enrich with comment + attachment counts (mirrors the SSR board page)
   const cardIds = cards.map((c) => c.id);
   const [{ data: commentRows }, { data: attachmentRows }] = await Promise.all([
-    admin.from('comments').select('delivery_card_id').in('delivery_card_id', cardIds),
+    admin.from('comments').select('delivery_card_id, body, created_at').in('delivery_card_id', cardIds).order('created_at', { ascending: false }),
     admin.from('attachments').select('delivery_card_id').in('delivery_card_id', cardIds),
   ]);
 
-  const commentMap = (commentRows ?? []).reduce<Record<string, number>>((acc, c) => {
-    acc[c.delivery_card_id] = (acc[c.delivery_card_id] ?? 0) + 1;
-    return acc;
-  }, {});
+  // commentRows is newest-first, so the first row per card is its latest comment.
+  const commentMap: Record<string, number> = {};
+  const latestCommentMap: Record<string, { body: string; created_at: string }> = {};
+  for (const c of commentRows ?? []) {
+    commentMap[c.delivery_card_id] = (commentMap[c.delivery_card_id] ?? 0) + 1;
+    if (!latestCommentMap[c.delivery_card_id]) {
+      latestCommentMap[c.delivery_card_id] = { body: c.body, created_at: c.created_at };
+    }
+  }
   const attachmentMap = (attachmentRows ?? []).reduce<Record<string, number>>((acc, a) => {
     acc[a.delivery_card_id] = (acc[a.delivery_card_id] ?? 0) + 1;
     return acc;
@@ -81,6 +86,7 @@ export async function GET(req: NextRequest) {
       comments: commentMap[card.id] ?? 0,
       attachments: attachmentMap[card.id] ?? 0,
     },
+    _latest_comment: latestCommentMap[card.id] ?? null,
   }));
 
   return NextResponse.json({ cards: enrichedCards });

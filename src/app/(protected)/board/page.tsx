@@ -25,14 +25,19 @@ export default async function BoardPage() {
       .eq('is_archived', false)
       .in('status', ['draft', 'pending_booking', 'booked', 'in_transit'])
       .order('created_at', { ascending: false }),
-    supabase.from('comments').select('delivery_card_id'),
+    supabase.from('comments').select('delivery_card_id, body, created_at').order('created_at', { ascending: false }),
     supabase.from('attachments').select('delivery_card_id'),
   ]);
 
-  const commentMap = (commentCounts ?? []).reduce<Record<string, number>>((acc, c) => {
-    acc[c.delivery_card_id] = (acc[c.delivery_card_id] ?? 0) + 1;
-    return acc;
-  }, {});
+  // commentCounts is ordered newest-first, so the first row seen per card is its latest comment.
+  const commentMap: Record<string, number> = {};
+  const latestCommentMap: Record<string, { body: string; created_at: string }> = {};
+  for (const c of commentCounts ?? []) {
+    commentMap[c.delivery_card_id] = (commentMap[c.delivery_card_id] ?? 0) + 1;
+    if (!latestCommentMap[c.delivery_card_id]) {
+      latestCommentMap[c.delivery_card_id] = { body: c.body, created_at: c.created_at };
+    }
+  }
 
   const attachmentMap = (attachmentCounts ?? []).reduce<Record<string, number>>((acc, a) => {
     acc[a.delivery_card_id] = (acc[a.delivery_card_id] ?? 0) + 1;
@@ -45,6 +50,7 @@ export default async function BoardPage() {
       comments: commentMap[card.id] ?? 0,
       attachments: attachmentMap[card.id] ?? 0,
     },
+    _latest_comment: latestCommentMap[card.id] ?? null,
   })) as DeliveryCardWithCustomers[];
 
   return <BoardClient initialCards={enrichedCards} />;

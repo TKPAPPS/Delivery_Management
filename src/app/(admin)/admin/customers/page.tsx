@@ -186,7 +186,7 @@ export default function AdminCustomersPage() {
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editCustomer ? 'Edit Customer' : 'Add Customer'} size="sm">
         <form onSubmit={handleSave} className="space-y-3">
           <Input label="Name *" value={form.name} onChange={f('name')} placeholder="Customer name" />
-          <Input label="Email" type="email" value={form.email} onChange={f('email')} placeholder="customer@email.com — used for automatic status emails" />
+          <Input label="Email" type="text" value={form.email} onChange={f('email')} placeholder="email(s) — separate multiple with commas" />
           <Input label="Contact Number" value={form.contact_number} onChange={f('contact_number')} placeholder="+66 XX XXXX XXXX" />
           <Input label="Default Delivery Location" value={form.default_delivery_location} onChange={f('default_delivery_location')} placeholder="e.g. Patong, Phuket" />
           <Textarea label="Full Address" value={form.full_address} onChange={f('full_address')} rows={2} placeholder="Full address..." />

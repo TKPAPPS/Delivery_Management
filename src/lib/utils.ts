@@ -104,6 +104,20 @@ export function displayOrderRef(order: { order_ref: string; odoo_order_ref?: str
   return order.odoo_order_ref || order.order_ref;
 }
 
+/**
+ * Split a free-text email field into individual addresses (comma / semicolon /
+ * whitespace separated) and validate each. Used so customers can hold multiple
+ * recipient addresses in one field. An empty string yields no addresses and no errors.
+ */
+export function parseEmailList(input: string | null | undefined): { valid: string[]; invalid: string[] } {
+  const parts = (input ?? '').split(/[,;\s]+/).map((p) => p.trim()).filter(Boolean);
+  const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const valid: string[] = [];
+  const invalid: string[] = [];
+  for (const p of parts) (re.test(p) ? valid : invalid).push(p);
+  return { valid, invalid };
+}
+
 export function timeAgo(dateString: string): string {
   const now = new Date();
   const date = new Date(dateString);

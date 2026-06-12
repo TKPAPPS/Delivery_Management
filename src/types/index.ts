@@ -115,6 +115,8 @@ export interface DeliveryCard {
   priority: DeliveryPriority;
   loading_priority: number | null;
   single_customer_lock: boolean;
+  planned_time: string | null;
+  shipping_type: 'Dry' | 'Frozen' | 'Chilled' | null;
   delivery_method: DeliveryMethod;
   delivery_type: DeliveryType | null;
   sort_order: number;
@@ -337,6 +339,7 @@ export interface DeliveryCardWithCustomers extends DeliveryCard {
     comments: number;
     attachments: number;
   };
+  _latest_comment?: { body: string; created_at: string } | null;
 }
 
 export interface DeliveryCardFull extends DeliveryCardWithCustomers {

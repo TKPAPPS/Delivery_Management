@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser, createSupabaseAdminClient } from '@/lib/supabase-server';
 import { parseBody } from '@/lib/parse-body';
 import { logActivity, ACTIONS } from '@/lib/activity';
-import { formatDate } from '@/lib/utils';
+import { formatDate, parseEmailList } from '@/lib/utils';
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const ctx = await getSessionUser();
@@ -15,6 +15,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   if (!to?.trim()) {
     return NextResponse.json({ error: 'Recipient email address required' }, { status: 400 });
+  }
+
+  // Support multiple comma/semicolon-separated recipients. Send to the valid ones;
+  // only fail when none are valid (mirrors the manual communications route).
+  const { valid: toAddresses } = parseEmailList(to);
+  if (toAddresses.length === 0) {
+    return NextResponse.json({ error: 'No valid email address provided' }, { status: 400 });
   }
 
   const apiKey = process.env.RESEND_API_KEY;
@@ -73,7 +80,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     .insert({
       delivery_card_id: params.id,
       channel: 'email',
-      recipient: to.trim(),
+      recipient: toAddresses.join(', '),
       subject,
       body,
       status: 'skipped',
@@ -94,7 +101,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       },
       body: JSON.stringify({
         from: fromEmail,
-        to: [to.trim()],
+        to: toAddresses,
         subject,
         text: body,
       }),
