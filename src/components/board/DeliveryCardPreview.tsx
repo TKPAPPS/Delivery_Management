@@ -137,9 +137,9 @@ export default function DeliveryCardPreview({ card, dragging }: DeliveryCardPrev
 
         {/* Latest comment */}
         {card._latest_comment?.body && (
-          <div className="flex items-start gap-1 text-xs text-slate-500 italic mb-2">
-            <MessageSquare className="w-3 h-3 flex-shrink-0 mt-0.5 text-slate-400" />
-            <span className="line-clamp-2">{card._latest_comment.body}</span>
+          <div className="flex items-start gap-1.5 mb-2 rounded-md bg-amber-50 border border-amber-100 px-2 py-1.5">
+            <MessageSquare className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-amber-600" />
+            <span className="text-xs text-slate-700 whitespace-pre-wrap break-words line-clamp-3">{card._latest_comment.body}</span>
           </div>
         )}
 

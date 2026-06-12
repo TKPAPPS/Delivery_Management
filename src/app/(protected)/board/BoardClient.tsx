@@ -7,7 +7,7 @@ import { useDebouncedCallback } from '@/lib/useDebouncedCallback';
 import KanbanColumn from '@/components/board/KanbanColumn';
 import CreateCardModal from '@/components/board/CreateCardModal';
 import Button from '@/components/ui/Button';
-import { Plus, RefreshCw, AlertTriangle, Truck, Search, X } from 'lucide-react';
+import { Plus, RefreshCw, AlertTriangle, Truck, Search, X, FileSpreadsheet } from 'lucide-react';
 import type { DeliveryCardWithCustomers, DeliveryStatus } from '@/types';
 import { useToastStore } from '@/store/toastStore';
 import { statusLabel, statusColor, formatDate } from '@/lib/utils';
@@ -166,6 +166,11 @@ export default function BoardClient({ initialCards }: BoardClientProps) {
           <Button variant="ghost" size="sm" onClick={refresh} loading={refreshing}>
             <RefreshCw className="w-4 h-4" />
           </Button>
+          <Link href="/export">
+            <Button variant="outline" size="sm">
+              <FileSpreadsheet className="w-4 h-4" /> <span className="hidden md:inline">Export</span>
+            </Button>
+          </Link>
           <Button onClick={() => setCreateOpen(true)}>
             <Plus className="w-4 h-4" /> New Card
           </Button>
