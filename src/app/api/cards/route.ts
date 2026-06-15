@@ -114,6 +114,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Loading priority must be an integer between 1 and 10' }, { status: 400 });
   }
 
+  // Validate inline customers' loading priority up front (before the card is created),
+  // so an out-of-range value can't silently drop a customer when its insert hits the DB CHECK.
+  for (const c of customers ?? []) {
+    const lp = c.loading_priority;
+    if (lp != null && (!Number.isInteger(lp) || (lp as number) < 1 || (lp as number) > 10)) {
+      return NextResponse.json({ error: 'Loading priority must be an integer between 1 and 10' }, { status: 400 });
+    }
+  }
+
   const validDeliveryType = delivery_type === 'our_motorcycle' || delivery_type === 'company_motorcycle' ? delivery_type : null;
 
   const admin = createSupabaseAdminClient();
