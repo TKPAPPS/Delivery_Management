@@ -48,7 +48,6 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
     destination: card.destination,
     planned_date: card.planned_date ?? '',
     priority: card.priority as 'normal' | 'urgent',
-    loading_priority: card.loading_priority != null ? String(card.loading_priority) : '',
     single_customer_lock: card.single_customer_lock,
     internal_notes: card.internal_notes ?? '',
   });
@@ -163,7 +162,6 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
         destination: editFields.destination,
         planned_date: editFields.planned_date || null,
         priority: editFields.priority,
-        loading_priority: editFields.loading_priority ? Number(editFields.loading_priority) : null,
         single_customer_lock: editFields.single_customer_lock,
         internal_notes: editFields.internal_notes || null,
       };
@@ -188,7 +186,6 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
       destination: card.destination,
       planned_date: card.planned_date ?? '',
       priority: card.priority,
-      loading_priority: card.loading_priority != null ? String(card.loading_priority) : '',
       single_customer_lock: card.single_customer_lock,
       internal_notes: card.internal_notes ?? '',
     });
@@ -219,9 +216,6 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
                 <Badge variant="danger">
                   <AlertTriangle className="w-3 h-3 mr-1" /> Urgent
                 </Badge>
-              )}
-              {!editing && card.loading_priority != null && (
-                <Badge variant="default">Load #{card.loading_priority}</Badge>
               )}
               {!editing && card.single_customer_lock && (
                 <Badge variant="default">Single customer</Badge>
@@ -255,18 +249,6 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
                       <option value="normal">Normal</option>
                       <option value="urgent">Urgent</option>
                     </select>
-                  </div>
-                  <div className="flex-1">
-                    <label className="block text-xs font-medium text-slate-500 mb-1">Loading priority (1–10)</label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={10}
-                      value={editFields.loading_priority}
-                      onChange={(e) => setEditFields((f) => ({ ...f, loading_priority: e.target.value }))}
-                      placeholder="Optional"
-                      className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-crimson-500"
-                    />
                   </div>
                 </div>
                 <label className="flex items-center gap-2 text-sm text-slate-700">

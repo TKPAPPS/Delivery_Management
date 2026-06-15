@@ -30,7 +30,13 @@ export default function DeliveryCardPreview({ card, dragging }: DeliveryCardPrev
     if (method === 'other') return card.other_method_name ?? null;
     return null;
   })();
-  const customerNames = card.customers.map((c) => c.customer_name);
+  // Order customers by loading priority (1 loads first); unprioritised go last.
+  const sortedCustomers = [...card.customers].sort((a, b) => {
+    const ap = a.loading_priority ?? Infinity;
+    const bp = b.loading_priority ?? Infinity;
+    if (ap !== bp) return ap - bp;
+    return a.sort_order - b.sort_order;
+  });
 
   const daysWaiting =
     card.status === 'pending_booking' && card.status_changed_at
@@ -53,13 +59,6 @@ export default function DeliveryCardPreview({ card, dragging }: DeliveryCardPrev
         <div className="flex items-start justify-between gap-2 mb-2">
           <span className="font-mono text-xs text-crimson-700">{card.delivery_ref}</span>
           <div className="flex items-center gap-1 flex-shrink-0">
-            {card.loading_priority != null && (
-              <Tooltip label={`Loading priority ${card.loading_priority}`} focusable={false} side="bottom">
-                <span className="inline-flex items-center bg-slate-100 text-slate-600 text-xs px-1.5 py-0.5 rounded-full font-medium">
-                  Load #{card.loading_priority}
-                </span>
-              </Tooltip>
-            )}
             {card.priority === 'urgent' && (
               <Tooltip label="Urgent priority" focusable={false} side="bottom">
                 <span className="inline-flex items-center gap-1 bg-crimson-100 text-crimson-700 text-xs px-1.5 py-0.5 rounded-full font-medium">
@@ -91,19 +90,24 @@ export default function DeliveryCardPreview({ card, dragging }: DeliveryCardPrev
           <p className="text-xs text-slate-500 mb-2">{formatDate(card.planned_date)}</p>
         )}
 
-        {/* Customers */}
-        {customerNames.length > 0 && (
+        {/* Customers (with per-customer loading priority) */}
+        {sortedCustomers.length > 0 && (
           <div className="mb-2">
-            {customerNames.slice(0, 2).map((name, i) => (
+            {sortedCustomers.slice(0, 2).map((c) => (
               <span
-                key={i}
-                className="inline-block bg-slate-100 text-slate-600 text-xs px-1.5 py-0.5 rounded mr-1 mb-1"
+                key={c.id}
+                className="inline-flex items-center gap-1 bg-slate-100 text-slate-600 text-xs px-1.5 py-0.5 rounded mr-1 mb-1"
               >
-                {name}
+                {c.loading_priority != null && (
+                  <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-crimson-600 text-white text-[10px] font-semibold">
+                    {c.loading_priority}
+                  </span>
+                )}
+                {c.customer_name}
               </span>
             ))}
-            {customerNames.length > 2 && (
-              <span className="text-xs text-slate-400">+{customerNames.length - 2} more</span>
+            {sortedCustomers.length > 2 && (
+              <span className="text-xs text-slate-400">+{sortedCustomers.length - 2} more</span>
             )}
           </div>
         )}

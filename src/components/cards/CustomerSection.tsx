@@ -44,7 +44,15 @@ export default function CustomerSection({ customers, card, activeCards, onRefres
   const [addingItemFor, setAddingItemFor] = useState<string | null>(null);
   const [newItem, setNewItem] = useState({ item_name: '', quantity: '' });
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editFields, setEditFields] = useState({ customer_name: '', customer_email: '', receive_auto_emails: true, delivery_location: '', notes: '' });
+  const [editFields, setEditFields] = useState({ customer_name: '', customer_email: '', receive_auto_emails: true, delivery_location: '', notes: '', loading_priority: '' });
+
+  // Show highest loading priority first (1 = load first); customers without a priority go last.
+  const sortedCustomers = [...customers].sort((a, b) => {
+    const ap = a.loading_priority ?? Infinity;
+    const bp = b.loading_priority ?? Infinity;
+    if (ap !== bp) return ap - bp;
+    return a.sort_order - b.sort_order;
+  });
   const [savingEdit, setSavingEdit] = useState(false);
 
   const handleDelete = async () => {
@@ -123,6 +131,7 @@ export default function CustomerSection({ customers, card, activeCards, onRefres
       receive_auto_emails: cust.receive_auto_emails ?? true,
       delivery_location: cust.delivery_location ?? '',
       notes: cust.notes ?? '',
+      loading_priority: cust.loading_priority != null ? String(cust.loading_priority) : '',
     });
     setEditingId(cust.id);
   };
@@ -140,6 +149,7 @@ export default function CustomerSection({ customers, card, activeCards, onRefres
           receive_auto_emails: editFields.receive_auto_emails,
           delivery_location: editFields.delivery_location.trim() || null,
           notes: editFields.notes.trim() || null,
+          loading_priority: editFields.loading_priority ? Number(editFields.loading_priority) : null,
         }),
       });
       if (!res.ok) throw new Error('Failed to update customer');
@@ -171,7 +181,7 @@ export default function CustomerSection({ customers, card, activeCards, onRefres
       <h3 className="font-semibold text-slate-900 text-sm mb-3">Customers ({customers.length})</h3>
 
       <div className="space-y-2">
-        {customers.map((cust) => (
+        {sortedCustomers.map((cust) => (
           <div key={cust.id} className="border border-slate-200 rounded-lg overflow-hidden">
             {editingId === cust.id ? (
               <div className="px-3 py-2.5 space-y-2 bg-slate-50">
@@ -203,6 +213,15 @@ export default function CustomerSection({ customers, card, activeCards, onRefres
                   placeholder="Building, floor, contact…"
                 />
                 <Input
+                  label="Loading priority (1–10)"
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={editFields.loading_priority}
+                  onChange={(e) => setEditFields((f) => ({ ...f, loading_priority: e.target.value }))}
+                  placeholder="Optional — 1 loads first"
+                />
+                <Input
                   label="Notes"
                   value={editFields.notes}
                   onChange={(e) => setEditFields((f) => ({ ...f, notes: e.target.value }))}
@@ -223,6 +242,13 @@ export default function CustomerSection({ customers, card, activeCards, onRefres
                 onClick={() => setExpanded((e) => (e === cust.id ? null : cust.id))}
               >
                 <div className="flex items-center gap-2 min-w-0">
+                  {cust.loading_priority != null && (
+                    <Tooltip label={`Loading priority ${cust.loading_priority} (1 loads first)`} className="flex-shrink-0">
+                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-crimson-100 text-crimson-700 text-xs font-semibold">
+                        {cust.loading_priority}
+                      </span>
+                    </Tooltip>
+                  )}
                   <span className="font-medium text-sm text-slate-900 truncate">{cust.customer_name}</span>
                   {cust.partial_shipment && (
                     <Badge variant="warning">Partial</Badge>

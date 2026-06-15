@@ -164,6 +164,7 @@ export interface DeliveryCustomer {
   notes: string | null;
   partial_shipment: boolean;
   partial_shipment_note: string | null;
+  loading_priority: number | null;
   sort_order: number;
   created_at: string;
   updated_at: string;

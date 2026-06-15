@@ -24,6 +24,7 @@ export default function AddCustomerForm({ cardId, onAdded, onCancel }: AddCustom
     receive_auto_emails: true,
     delivery_location: '',
     notes: '',
+    loading_priority: '',
   });
   const [saleOrders, setSaleOrders] = useState<string[]>(['']);
 
@@ -40,6 +41,7 @@ export default function AddCustomerForm({ cardId, onAdded, onCancel }: AddCustom
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
+          loading_priority: form.loading_priority ? Number(form.loading_priority) : null,
           sale_orders: saleOrders.filter((so) => so.trim()),
         }),
       });
@@ -80,6 +82,14 @@ export default function AddCustomerForm({ cardId, onAdded, onCancel }: AddCustom
         placeholder="Customer email(s) — separate multiple with commas"
         value={form.customer_email}
         onChange={(e) => setForm((f) => ({ ...f, customer_email: e.target.value }))}
+      />
+      <Input
+        type="number"
+        min={1}
+        max={10}
+        placeholder="Loading priority (1–10) — optional"
+        value={form.loading_priority}
+        onChange={(e) => setForm((f) => ({ ...f, loading_priority: e.target.value }))}
       />
       <label className="flex items-center gap-2 text-xs text-slate-600 select-none">
         <input

@@ -154,6 +154,7 @@ export async function POST(req: NextRequest) {
           receive_auto_emails: c.receive_auto_emails !== false,
           delivery_location: c.delivery_location || null,
           notes: c.notes || null,
+          loading_priority: (c.loading_priority as number | null) ?? null,
           sort_order: i,
         })
         .select()

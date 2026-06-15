@@ -25,9 +25,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const parsed = await parseBody(req);
   if ('error' in parsed) return parsed.error;
   const body = parsed.data as Record<string, unknown>;
-  const { customer_name, customer_directory_id, customer_email, receive_auto_emails, delivery_location, notes, sale_orders } = body;
+  const { customer_name, customer_directory_id, customer_email, receive_auto_emails, delivery_location, notes, sale_orders, loading_priority } = body;
 
   if (!customer_name) return NextResponse.json({ error: 'Customer name is required' }, { status: 400 });
+
+  if (loading_priority != null &&
+      (!Number.isInteger(loading_priority) || (loading_priority as number) < 1 || (loading_priority as number) > 10)) {
+    return NextResponse.json({ error: 'Loading priority must be an integer between 1 and 10' }, { status: 400 });
+  }
 
   const admin = createSupabaseAdminClient();
 
@@ -56,6 +61,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       receive_auto_emails: receive_auto_emails !== false,
       delivery_location: delivery_location || null,
       notes: notes || null,
+      loading_priority: (loading_priority as number | null) ?? null,
       sort_order: count ?? 0,
     })
     .select()
