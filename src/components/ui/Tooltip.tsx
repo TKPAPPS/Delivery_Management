@@ -1,6 +1,7 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useState, useRef, useEffect, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 
 interface TooltipProps {
@@ -14,27 +15,59 @@ interface TooltipProps {
 }
 
 /**
- * Lightweight CSS tooltip — visible on hover AND keyboard focus, no JS/portal.
- * The bubble is pointer-events-none so it never blocks clicks or drag-and-drop.
+ * Tooltip rendered in a portal to <body> with position:fixed, so it is never
+ * clipped by an ancestor's overflow (e.g. the scrolling Kanban column) or hidden
+ * behind another stacking context. Visible on hover AND keyboard focus; the
+ * bubble is pointer-events-none so it never blocks clicks or drag-and-drop.
  */
 export default function Tooltip({ label, children, side = 'top', focusable = true, className }: TooltipProps) {
+  const triggerRef = useRef<HTMLSpanElement>(null);
+  const [coords, setCoords] = useState<{ left: number; top: number } | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
+
+  const show = () => {
+    const el = triggerRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const gap = 6;
+    setCoords({
+      left: r.left + r.width / 2,
+      top: side === 'top' ? r.top - gap : r.bottom + gap,
+    });
+  };
+  const hide = () => setCoords(null);
+
   return (
     <span
-      className={cn('relative inline-flex items-center group/tt cursor-help', className)}
+      ref={triggerRef}
+      className={cn('relative inline-flex items-center cursor-help', className)}
+      onMouseEnter={show}
+      onMouseLeave={hide}
+      onFocus={show}
+      onBlur={hide}
       {...(focusable ? { tabIndex: 0 } : {})}
     >
       {children}
-      <span
-        role="tooltip"
-        className={cn(
-          'pointer-events-none absolute left-1/2 z-50 -translate-x-1/2 hidden w-max max-w-[15rem]',
-          'rounded-md bg-slate-900 px-2 py-1 text-center text-xs font-normal leading-snug text-white shadow-lg',
-          'group-hover/tt:block group-focus-within/tt:block',
-          side === 'top' ? 'bottom-full mb-1.5' : 'top-full mt-1.5',
-        )}
-      >
-        {label}
-      </span>
+      {mounted && coords && createPortal(
+        <span
+          role="tooltip"
+          style={{
+            position: 'fixed',
+            left: coords.left,
+            top: coords.top,
+            transform: `translateX(-50%) ${side === 'top' ? 'translateY(-100%)' : ''}`,
+          }}
+          className={cn(
+            'pointer-events-none z-[9999] w-max max-w-[15rem]',
+            'rounded-md bg-slate-900 px-2 py-1 text-center text-xs font-normal leading-snug text-white shadow-lg',
+          )}
+        >
+          {label}
+        </span>,
+        document.body,
+      )}
     </span>
   );
 }
