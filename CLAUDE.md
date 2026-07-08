@@ -186,6 +186,11 @@ mounted after `LogisticsSection`) recovers a shared truck's cost from the custom
   `order_value` + `original_booker_id`. Edits go through the existing card/customer PATCH routes
   (whitelisted `car_cost`/`original_booker_id`/`order_value`, non-negative validated) and realtime refresh.
 - **Migration:** `supabase/migration_cost_split_v1.sql` (idempotent).
+- **PostgREST embed hint (important):** `original_booker_id` adds a **second** FK between
+  `delivery_cards` and `delivery_customers`, so every embed of customers from a card must
+  disambiguate with the FK hint `customers:delivery_customers!delivery_card_id(...)`. A plain
+  `delivery_customers(...)` embed now errors ("more than one relationship found") and breaks the
+  board, dashboard, card detail, archive, export, and card API. Keep the hint on all such queries.
 
 ## Customer Status Emails (template-driven, email only)
 
