@@ -83,6 +83,21 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: 'Car cost must be a non-negative number' }, { status: 400 });
   }
 
+  // The original booker must be a customer on THIS card. The DB FK only guarantees the id points
+  // at some delivery_customers row, so without this a booker from another card could be stored,
+  // leaving the card with nobody exempt (every customer wrongly surcharged).
+  if (updateData.original_booker_id !== undefined && updateData.original_booker_id !== null) {
+    const { data: booker } = await admin
+      .from('delivery_customers')
+      .select('id')
+      .eq('id', updateData.original_booker_id)
+      .eq('delivery_card_id', params.id)
+      .maybeSingle();
+    if (!booker) {
+      return NextResponse.json({ error: 'Original booker must be a customer on this card' }, { status: 400 });
+    }
+  }
+
   // Restore (admin only): clearing deleted_at brings a soft-deleted card back. Soft-deleting
   // is not allowed via PATCH — it goes through DELETE — so only `null` is accepted here.
   const isRestore = body.deleted_at === null;

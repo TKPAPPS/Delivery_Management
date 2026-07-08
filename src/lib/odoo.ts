@@ -15,7 +15,7 @@ export interface OdooSaleOrder {
   // `state` and `invoice_status` exist on every Odoo version.
   state: string | false;
   invoice_status: string | false;
-  // Order total (THB) — used to split a shared truck's cost by customer value.
+  // Order total (THB), used to split a shared truck's cost by customer value.
   amount_total: number | false;
 }
 

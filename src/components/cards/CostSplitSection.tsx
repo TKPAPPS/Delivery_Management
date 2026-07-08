@@ -43,19 +43,28 @@ export default function CostSplitSection({ card, onUpdated, onRefresh }: CostSpl
   }, [card.customers]);
 
   // The surcharge-exempt customer: the explicitly chosen booker, else the earliest-added
-  // (lowest sort_order) so there is always exactly one exempt customer.
+  // (lowest sort_order) so there is always exactly one exempt customer. Fall back to the
+  // default whenever the stored booker is no longer on this card (e.g. it was unloaded/moved),
+  // otherwise a dangling id would exempt nobody and every customer would be surcharged.
   const defaultOriginalId = useMemo(() => {
     if (card.customers.length === 0) return null;
     return [...card.customers].sort((a, b) => a.sort_order - b.sort_order)[0].id;
   }, [card.customers]);
-  const effectiveOriginalId = card.original_booker_id ?? defaultOriginalId;
+  const bookerOnCard = card.original_booker_id != null && card.customers.some((c) => c.id === card.original_booker_id);
+  const effectiveOriginalId = bookerOnCard ? card.original_booker_id : defaultOriginalId;
 
   // Sync local inputs from server truth when it changes (after a save/refresh or a realtime update).
   useEffect(() => {
     setCarCostInput(card.car_cost != null ? String(card.car_cost) : '');
   }, [card.car_cost]);
+  // Merge server values in without clobbering rows the user is currently editing: keep a local
+  // value that differs from the server (a dirty, unsaved edit), otherwise take the server value.
   useEffect(() => {
-    setValues(Object.fromEntries(card.customers.map((c) => [c.id, c.order_value != null ? String(c.order_value) : ''])));
+    setValues((prev) => Object.fromEntries(card.customers.map((c) => {
+      const server = c.order_value != null ? String(c.order_value) : '';
+      const local = prev[c.id];
+      return [c.id, local !== undefined && local !== server ? local : server];
+    })));
   }, [card.customers]);
 
   const split = useMemo(() => {
@@ -162,14 +171,10 @@ export default function CostSplitSection({ card, onUpdated, onRefresh }: CostSpl
 
         <Select
           label="Original booker (no surcharge)"
-          value={card.original_booker_id ?? ''}
+          value={effectiveOriginalId ?? ''}
           onChange={(e) => saveBooker(e.target.value)}
           options={customers.map((c) => ({ value: c.id, label: c.customer_name }))}
-          placeholder={
-            defaultOriginalId
-              ? `Default: ${customers.find((c) => c.id === defaultOriginalId)?.customer_name ?? 'first customer'}`
-              : 'No customers yet'
-          }
+          placeholder={customers.length ? undefined : 'No customers yet'}
         />
       </div>
 

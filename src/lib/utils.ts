@@ -138,7 +138,7 @@ export function formatTHB(amount: number | null | undefined): string {
  * cost, so the grand total exceeds `carCost` by `surcharge × addedCount`.
  *
  * `needsValues` is true when no positive order values are present, so the split can't be
- * computed by value — the UI should prompt for values instead of showing a split.
+ * computed by value; the UI should prompt for values instead of showing a split.
  */
 export const SURCHARGE_PER_ADDED = 200;
 
