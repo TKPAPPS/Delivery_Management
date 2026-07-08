@@ -42,7 +42,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     .select(`
       *,
       driver:drivers(name, phone, vehicle_type, license_plate),
-      customers:delivery_customers(
+      customers:delivery_customers!delivery_card_id(
         *,
         sale_orders:customer_sale_orders(sale_order_number),
         extra_items:extra_delivery_items(item_name, quantity)

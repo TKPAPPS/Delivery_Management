@@ -13,7 +13,7 @@ export default async function PrintPage({ params }: { params: { id: string } }) 
     .select(`
       *,
       driver:drivers(name, phone, vehicle_type, license_plate),
-      customers:delivery_customers(
+      customers:delivery_customers!delivery_card_id(
         *,
         sale_orders:customer_sale_orders(*),
         extra_items:extra_delivery_items(*)

@@ -51,7 +51,7 @@ export async function sendStatusCustomerEmails(
       .select(`
         delivery_ref, destination, planned_date, driver_name_manual, driver_phone_manual,
         driver:drivers(name, phone),
-        customers:delivery_customers(customer_name, customer_email, receive_auto_emails)
+        customers:delivery_customers!delivery_card_id(customer_name, customer_email, receive_auto_emails)
       `)
       .eq('id', deliveryCardId)
       .single();

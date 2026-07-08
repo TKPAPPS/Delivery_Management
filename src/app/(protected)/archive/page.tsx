@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 const COLS = `
   id, delivery_ref, destination, status, planned_date, archived_at, created_at, delivered_at, deleted_at,
-  customers:delivery_customers(
+  customers:delivery_customers!delivery_card_id(
     customer_name,
     sale_orders:customer_sale_orders(sale_order_number)
   )

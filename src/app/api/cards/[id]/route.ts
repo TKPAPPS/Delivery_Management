@@ -15,7 +15,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       *,
       driver:drivers(*),
       creator:profiles!delivery_cards_created_by_fkey(id, name, email),
-      customers:delivery_customers(
+      customers:delivery_customers!delivery_card_id(
         *,
         sale_orders:customer_sale_orders(*),
         extra_items:extra_delivery_items(*)
