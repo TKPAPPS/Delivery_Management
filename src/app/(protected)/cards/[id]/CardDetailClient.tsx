@@ -8,6 +8,7 @@ import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import StatusDropdown from '@/components/cards/StatusDropdown';
 import LogisticsSection from '@/components/cards/LogisticsSection';
+import CostSplitSection from '@/components/cards/CostSplitSection';
 import CommunicationPanel from '@/components/cards/CommunicationPanel';
 import CustomerSection from '@/components/cards/CustomerSection';
 import AddCustomerForm from '@/components/cards/AddCustomerForm';
@@ -465,6 +466,11 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
       {/* Logistics Section */}
       <div className="mb-6">
         <LogisticsSection card={card} drivers={drivers} onUpdated={handleCardUpdated} />
+      </div>
+
+      {/* Cost Split Section */}
+      <div className="mb-6">
+        <CostSplitSection card={card} onUpdated={handleCardUpdated} onRefresh={refresh} />
       </div>
 
       {/* Customers Section */}

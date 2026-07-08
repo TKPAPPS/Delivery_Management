@@ -66,6 +66,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     'courier_company_id', 'courier_company_name', 'tracking_number',
     'cargo_company_id', 'cargo_company_name', 'mawb_number', 'hawb_number', 'flight_number', 'cargo_etd', 'cargo_eta',
     'other_method_name', 'other_tracking_ref',
+    'car_cost', 'original_booker_id',
   ] as const;
   const updateData: Record<string, unknown> = {};
   for (const field of ALLOWED_FIELDS) {
@@ -75,6 +76,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const lp = updateData.loading_priority;
   if (lp !== undefined && lp !== null && (!Number.isInteger(lp) || (lp as number) < 1 || (lp as number) > 10)) {
     return NextResponse.json({ error: 'Loading priority must be an integer between 1 and 10' }, { status: 400 });
+  }
+
+  const cc = updateData.car_cost;
+  if (cc !== undefined && cc !== null && (typeof cc !== 'number' || !Number.isFinite(cc) || cc < 0)) {
+    return NextResponse.json({ error: 'Car cost must be a non-negative number' }, { status: 400 });
   }
 
   // Restore (admin only): clearing deleted_at brings a soft-deleted card back. Soft-deleting

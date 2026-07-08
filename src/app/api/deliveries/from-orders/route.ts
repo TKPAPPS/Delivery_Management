@@ -25,6 +25,7 @@ interface OrderRow {
   customer_address: string | null;
   customer_phone: string | null;
   destination_manual: string | null;
+  amount_total: number | null;
   customer: { id: string; name: string; email: string | null } | null;
   destination: { id: string; name: string } | null;
   lines: Array<{
@@ -53,7 +54,7 @@ export async function POST(req: NextRequest) {
   const { data: rawOrders, error: fetchErr } = await admin
     .from('orders')
     .select(`
-      id, order_ref, status, delivery_card_id, customer_id, customer_name_manual, customer_email, customer_address, customer_phone, destination_manual,
+      id, order_ref, status, delivery_card_id, customer_id, customer_name_manual, customer_email, customer_address, customer_phone, destination_manual, amount_total,
       customer:customer_directory!orders_customer_id_fkey(id, name, email),
       destination:destinations!orders_destination_id_fkey(id, name),
       lines:order_lines(product_name, product_code, sale_order_number, qty_ordered, deleted_at)
@@ -176,6 +177,7 @@ export async function POST(req: NextRequest) {
         receive_auto_emails: true,
         notes: `From order ${o.order_ref}`,
         sort_order: assigned.length,
+        order_value: o.amount_total ?? null,
       })
       .select('id')
       .single();

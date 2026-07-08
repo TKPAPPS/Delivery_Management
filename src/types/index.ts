@@ -143,6 +143,9 @@ export interface DeliveryCard {
   // Other
   other_method_name: string | null;
   other_tracking_ref: string | null;
+  // Cost split
+  car_cost: number | null;
+  original_booker_id: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -166,6 +169,7 @@ export interface DeliveryCustomer {
   partial_shipment_note: string | null;
   loading_priority: number | null;
   sort_order: number;
+  order_value: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -262,6 +266,7 @@ export interface Order {
   status: OrderStatus;
   notes: string | null;
   order_date: string | null;
+  amount_total: number | null;
   delivery_card_id: string | null;
   created_by: string | null;
   deleted_at: string | null;

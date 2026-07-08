@@ -153,7 +153,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   const updateData: Record<string, unknown> = {};
-  const allowedFields = ['customer_name', 'customer_directory_id', 'customer_email', 'receive_auto_emails', 'delivery_location', 'notes', 'partial_shipment', 'partial_shipment_note', 'loading_priority', 'sort_order'];
+  const allowedFields = ['customer_name', 'customer_directory_id', 'customer_email', 'receive_auto_emails', 'delivery_location', 'notes', 'partial_shipment', 'partial_shipment_note', 'loading_priority', 'sort_order', 'order_value'];
   for (const field of allowedFields) {
     if (body[field] !== undefined) updateData[field] = body[field];
   }
@@ -161,6 +161,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const lp = updateData.loading_priority;
   if (lp != null && (!Number.isInteger(lp) || (lp as number) < 1 || (lp as number) > 10)) {
     return NextResponse.json({ error: 'Loading priority must be an integer between 1 and 10' }, { status: 400 });
+  }
+
+  const ov = updateData.order_value;
+  if (ov != null && (typeof ov !== 'number' || !Number.isFinite(ov) || ov < 0)) {
+    return NextResponse.json({ error: 'Order value must be a non-negative number' }, { status: 400 });
   }
 
   const { data: updated, error } = await admin

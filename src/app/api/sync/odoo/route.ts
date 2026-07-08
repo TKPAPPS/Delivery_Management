@@ -202,7 +202,7 @@ export async function POST(req: NextRequest) {
     if (odooSince) domain.push(['write_date', '>=', odooSince]);
 
     const odooOrders = (await odooExecuteKw(uid, 'sale.order', 'search_read', [domain], {
-      fields: ['id', 'name', 'partner_id', 'partner_shipping_id', 'note', 'date_order', 'state', 'invoice_status'],
+      fields: ['id', 'name', 'partner_id', 'partner_shipping_id', 'note', 'date_order', 'state', 'invoice_status', 'amount_total'],
       limit: 0,
     })) as OdooSaleOrder[];
 
@@ -318,6 +318,7 @@ export async function POST(req: NextRequest) {
             ? odooOrder.partner_shipping_id[1]
             : null;
           const notes = odooOrder.note || null;
+          const amountTotal = typeof odooOrder.amount_total === 'number' ? odooOrder.amount_total : null;
           // Odoo returns datetimes as UTC "YYYY-MM-DD HH:MM:SS" with no zone marker.
           // Parse defensively: a malformed value becomes null, never an exception
           // that would abort this order's whole import.
@@ -363,6 +364,7 @@ export async function POST(req: NextRequest) {
                 destination_manual: destinationName,
                 notes,
                 order_date: orderDate,
+                amount_total: amountTotal,
                 priority: 3,
                 status: 'pending',
               })
@@ -380,6 +382,7 @@ export async function POST(req: NextRequest) {
               destination_manual: destinationName,
               notes,
               order_date: orderDate,
+              amount_total: amountTotal,
               odoo_sync_log_id: syncLogId,
             };
             // It was soft-deleted (we'd closed it as handled) but is open again in Odoo:

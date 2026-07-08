@@ -165,6 +165,28 @@ The legacy `planning_queue` table and its `/api/planning-queue` routes still exi
 
 **Only applies to `delivery_method === 'other'`.** The motorcycle Delivery Type is nonsensical for car/post/air, so the selector is hidden for those methods in both `CreateCardModal` and `LogisticsSection`; changing the method away from `other` clears `delivery_type` in form state, and `LogisticsSection.save()` force-nulls `delivery_type` whenever the method isn't `other` (so a stale legacy value can't persist on a Car/Truck card). The header chip also only renders when `method === 'other'`.
 
+## Cost Split (per-customer delivery cost)
+
+A dedicated "Cost Split" panel on the card detail page (`src/components/cards/CostSplitSection.tsx`,
+mounted after `LogisticsSection`) recovers a shared truck's cost from the customers on the card.
+
+- **Inputs:** `delivery_cards.car_cost` (THB, user-entered) and a per-customer `delivery_customers.order_value`.
+  `order_value` is seeded from the linked order's Odoo `amount_total` at conversion (Order → Delivery bridge)
+  but is fully editable, so manually-added customers and pre-Odoo-amount cards still work.
+- **Odoo amount:** the sync now reads `sale.order.amount_total` and stores it on `orders.amount_total`
+  (`src/lib/odoo.ts` `OdooSaleOrder` + `src/app/api/sync/odoo/route.ts`). Still read-only — no write-back.
+- **Original booker:** `delivery_cards.original_booker_id` (FK → `delivery_customers`, `on delete set null`)
+  marks the one customer exempt from the surcharge. When unset the UI defaults the exemption to the
+  earliest-added customer (lowest `sort_order`), so there is always exactly one exempt.
+- **Math** (`computeCostSplit()` in `src/lib/utils.ts`): each customer's share = `car_cost × value / Σvalue`,
+  **rounded up to the nearest 10 THB** (`Math.ceil(x/10)*10`); then a flat `SURCHARGE_PER_ADDED` (200 THB)
+  is added for every non-original customer. The surcharge is charged **on top** of the car cost, so the
+  grand total collected exceeds `car_cost` by `200 × addedCount`. `formatTHB()` renders amounts.
+- **Persistence:** the breakdown is **derived live**, not stored — from `car_cost` + per-customer
+  `order_value` + `original_booker_id`. Edits go through the existing card/customer PATCH routes
+  (whitelisted `car_cost`/`original_booker_id`/`order_value`, non-negative validated) and realtime refresh.
+- **Migration:** `supabase/migration_cost_split_v1.sql` (idempotent).
+
 ## Customer Status Emails (template-driven, email only)
 
 On every status change, `sendStatusCustomerEmails()` in `src/lib/customer-messages.ts` (fire-and-forget from the status route) emails customers — **no LINE**, distinct from the internal `notifications.ts` system.
