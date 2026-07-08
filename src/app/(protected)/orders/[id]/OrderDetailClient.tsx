@@ -9,7 +9,7 @@ import Input from '@/components/ui/Input';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useToastStore } from '@/store/toastStore';
 import {
-  formatDate, formatDateTime,
+  formatDate, formatDateTime, formatTHB,
   orderPriorityLabel, orderPriorityColor,
   orderStatusLabel, orderStatusColor,
   timeAgo, displayOrderRef,
@@ -327,6 +327,15 @@ export default function OrderDetailClient({ initialOrder, role }: Props) {
             <div>
               <dt className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Created</dt>
               <dd className="mt-1 text-sm text-slate-900">{formatDate(order.created_at)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Order value</dt>
+              <dd className="mt-1 text-sm text-slate-900">
+                {order.amount_total != null ? formatTHB(order.amount_total) : <span className="text-slate-400">—</span>}
+                {order.source === 'odoo' && order.amount_total == null && (
+                  <span className="ml-1 text-xs text-slate-400">(re-sync to fetch)</span>
+                )}
+              </dd>
             </div>
             {order.notes && (
               <div className="col-span-2 md:col-span-3">
