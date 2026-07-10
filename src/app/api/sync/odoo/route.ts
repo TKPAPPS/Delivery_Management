@@ -382,9 +382,12 @@ export async function POST(req: NextRequest) {
               destination_manual: destinationName,
               notes,
               order_date: orderDate,
-              amount_total: amountTotal,
               odoo_sync_log_id: syncLogId,
             };
+            // Only write amount_total when Odoo actually returned a number. A re-sync that
+            // doesn't get the field must never overwrite a previously-captured amount with null
+            // (that would silently wipe the value the cost split relies on).
+            if (amountTotal !== null) patch.amount_total = amountTotal;
             // It was soft-deleted (we'd closed it as handled) but is open again in Odoo:
             // bring it back as a pending order rather than leaving it stuck deleted.
             if (existing.deleted) {
