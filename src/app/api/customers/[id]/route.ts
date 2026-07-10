@@ -43,20 +43,38 @@ async function discardCardIfEmpty(admin: Admin, cardId: string | null, userId: s
   return true;
 }
 
-/** The order follows its customer to a new card (stays assigned). No-op for hand-added customers. */
-async function followOrderToCard(admin: Admin, orderId: string | null | undefined, cardId: string): Promise<void> {
-  if (!orderId) return;
-  await admin.from('orders').update({ delivery_card_id: cardId }).eq('id', orderId);
+// A delivery_customer can represent several orders (same-customer orders are combined), so
+// unload/release operate on the whole set via orders.delivery_customer_id. Legacy rows whose
+// orders were never linked fall back to the single order_id. No-op for hand-added customers.
+type CustomerRef = { id: string; order_id: string | null };
+
+/** All of this customer's orders follow it to a new card (they stay assigned). */
+async function followOrderToCard(admin: Admin, customer: CustomerRef, cardId: string): Promise<void> {
+  const { data } = await admin
+    .from('orders')
+    .update({ delivery_card_id: cardId })
+    .eq('delivery_customer_id', customer.id)
+    .select('id');
+  if ((!data || data.length === 0) && customer.order_id) {
+    await admin.from('orders').update({ delivery_card_id: cardId }).eq('id', customer.order_id);
+  }
 }
 
-/** Release the order back to the Orders Pool (unassigned) so it can be dispatched again. */
-async function releaseOrderToPool(admin: Admin, orderId: string | null | undefined): Promise<void> {
-  if (!orderId) return;
-  await admin
+/** Release this customer's orders back to the Orders Pool (unassigned) so they can be dispatched again. */
+async function releaseOrderToPool(admin: Admin, customer: CustomerRef): Promise<void> {
+  const { data } = await admin
     .from('orders')
     .update({ delivery_card_id: null, status: 'pending' })
-    .eq('id', orderId)
-    .not('status', 'in', '("completed","cancelled")');
+    .eq('delivery_customer_id', customer.id)
+    .not('status', 'in', '("completed","cancelled")')
+    .select('id');
+  if ((!data || data.length === 0) && customer.order_id) {
+    await admin
+      .from('orders')
+      .update({ delivery_card_id: null, status: 'pending' })
+      .eq('id', customer.order_id)
+      .not('status', 'in', '("completed","cancelled")');
+  }
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
@@ -93,7 +111,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         target_card_id,
       });
 
-      await followOrderToCard(admin, customer.order_id, target_card_id as string);
+      await followOrderToCard(admin, customer, target_card_id as string);
       const discarded = await discardCardIfEmpty(admin, customer.delivery_card_id, user.id);
       return NextResponse.json({ success: true, source_card_discarded: discarded });
     }
@@ -114,7 +132,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         new_card_id: newCard.id,
       });
 
-      await followOrderToCard(admin, customer.order_id, newCard.id);
+      await followOrderToCard(admin, customer, newCard.id);
       const discarded = await discardCardIfEmpty(admin, customer.delivery_card_id, user.id);
       return NextResponse.json({ success: true, newCardId: newCard.id, source_card_discarded: discarded });
     }
@@ -147,7 +165,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       new_card_id: queueCard.id,
     });
 
-    await followOrderToCard(admin, customer.order_id, queueCard.id);
+    await followOrderToCard(admin, customer, queueCard.id);
     const discarded = await discardCardIfEmpty(admin, customer.delivery_card_id, user.id);
     return NextResponse.json({ success: true, newCardId: queueCard.id, source_card_discarded: discarded });
   }
@@ -203,7 +221,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     customer_name: customer.customer_name,
   });
 
-  await releaseOrderToPool(admin, customer.order_id);
+  await releaseOrderToPool(admin, customer);
   const discarded = await discardCardIfEmpty(admin, customer.delivery_card_id, user.id);
   return NextResponse.json({ success: true, source_card_discarded: discarded });
 }

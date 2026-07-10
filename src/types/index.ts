@@ -268,6 +268,7 @@ export interface Order {
   order_date: string | null;
   amount_total: number | null;
   delivery_card_id: string | null;
+  delivery_customer_id: string | null;
   created_by: string | null;
   deleted_at: string | null;
   created_at: string;

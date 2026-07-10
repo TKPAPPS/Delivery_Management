@@ -100,9 +100,19 @@ export async function POST(req: NextRequest) {
 
   const assigned: string[] = [];
 
-  for (let i = 0; i < candidates.length; i++) {
-    const o = candidates[i];
+  // Phase 1: atomically claim each order and resolve its Directory company, then group the
+  // claimed orders by customer name so several orders for the same customer become ONE customer.
+  type LiveLine = NonNullable<OrderRow['lines']>[number];
+  interface ClaimedOrder {
+    o: OrderRow;
+    directoryId: string | null;
+    companyEmail: string | null;
+    companyLocation: string | null;
+    liveLines: LiveLine[];
+  }
+  const groups = new Map<string, ClaimedOrder[]>();
 
+  for (const o of candidates) {
     // Atomically claim the order: only succeeds if it's still unassigned. This closes
     // the read-then-write race (two requests can't both claim the same order).
     const { data: claimed } = await admin
@@ -116,7 +126,7 @@ export async function POST(req: NextRequest) {
     if (!claimed) { skipped.push(o.order_ref); continue; }
 
     // Resolve the Directory company. Manual orders already have customer_id; Odoo orders carry
-    // only a name (+ snapshotted email/address) — match the company by name, creating it if new
+    // only a name (+ snapshotted email/address): match the company by name, creating it if new
     // and seeding email/address only when empty (never overwriting a team-edited value).
     let directoryId: string | null = o.customer_id ?? null;
     let companyEmail: string | null = o.customer?.email ?? null;
@@ -165,51 +175,73 @@ export async function POST(req: NextRequest) {
     }
 
     const liveLines = (o.lines ?? []).filter((l) => !l.deleted_at);
+    const key = resolveCustomer(o).trim().toLowerCase();
+    const entry: ClaimedOrder = { o, directoryId, companyEmail, companyLocation, liveLines };
+    const bucket = groups.get(key);
+    if (bucket) bucket.push(entry); else groups.set(key, [entry]);
+    assigned.push(o.order_ref);
+  }
+
+  // Phase 2: one delivery_customer per customer group. Order values are summed, and the group's
+  // sale orders / line items are combined onto the single customer row.
+  let sortIdx = 0;
+  for (const members of Array.from(groups.values())) {
+    const first = members[0];
+    const amounts = members.map((m) => m.o.amount_total).filter((v): v is number => typeof v === 'number');
+    const orderValue = amounts.length ? amounts.reduce((a, b) => a + b, 0) : null;
+    const refs = members.map((m) => m.o.order_ref);
+
     const { data: cust, error: custErr } = await admin
       .from('delivery_customers')
       .insert({
         delivery_card_id: card.id,
-        order_id: o.id,
-        customer_name: resolveCustomer(o),
-        customer_directory_id: directoryId,
-        customer_email: companyEmail,
-        delivery_location: companyLocation,
+        order_id: first.o.id,
+        customer_name: resolveCustomer(first.o),
+        customer_directory_id: first.directoryId,
+        customer_email: first.companyEmail,
+        delivery_location: first.companyLocation,
         receive_auto_emails: true,
-        notes: `From order ${o.order_ref}`,
-        sort_order: assigned.length,
-        order_value: o.amount_total ?? null,
+        notes: refs.length > 1 ? `From orders ${refs.join(', ')}` : `From order ${refs[0]}`,
+        sort_order: sortIdx,
+        order_value: orderValue,
       })
       .select('id')
       .single();
 
-    // If building the customer failed, release the claim so the order isn't silently
-    // marked assigned with nothing on the card.
+    // If building the customer failed, release every claimed order in the group so none is
+    // silently marked assigned with nothing on the card.
     if (custErr || !cust) {
-      await admin.from('orders').update({ status: o.status, delivery_card_id: null }).eq('id', o.id);
-      skipped.push(o.order_ref);
+      for (const m of members) {
+        await admin.from('orders').update({ status: m.o.status, delivery_card_id: null }).eq('id', m.o.id);
+        const idx = assigned.indexOf(m.o.order_ref);
+        if (idx >= 0) assigned.splice(idx, 1);
+        skipped.push(m.o.order_ref);
+      }
       continue;
     }
+    sortIdx++;
 
-    const soNumbers = Array.from(
-      new Set(liveLines.map((l) => l.sale_order_number?.trim()).filter((s): s is string => !!s)),
-    );
+    // Link every order of this customer to the delivery_customer (used by unload/release).
+    await admin.from('orders').update({ delivery_customer_id: cust.id }).in('id', members.map((m) => m.o.id));
+
+    const soNumbers = Array.from(new Set(
+      members.flatMap((m: ClaimedOrder) => m.liveLines.map((l: LiveLine) => l.sale_order_number?.trim())).filter((s): s is string => !!s),
+    ));
     if (soNumbers.length > 0) {
       await admin.from('customer_sale_orders').insert(
         soNumbers.map((so) => ({ delivery_customer_id: cust.id, sale_order_number: so })),
       );
     }
-    if (liveLines.length > 0) {
-      await admin.from('extra_delivery_items').insert(
-        liveLines.map((l) => ({
-          delivery_customer_id: cust.id,
-          item_name: l.product_code ? `${l.product_code} — ${l.product_name}` : l.product_name,
-          quantity: String(l.qty_ordered),
-        })),
-      );
-    }
+    const items = members.flatMap((m: ClaimedOrder) => m.liveLines.map((l: LiveLine) => ({
+      delivery_customer_id: cust.id,
+      item_name: l.product_code ? `${l.product_code} - ${l.product_name}` : l.product_name,
+      quantity: String(l.qty_ordered),
+    })));
+    if (items.length > 0) await admin.from('extra_delivery_items').insert(items);
 
-    assigned.push(o.order_ref);
-    await logActivity(null, user.id, ACTIONS.ORDER_ASSIGNED, { order_ref: o.order_ref, delivery_card_id: card.id }, { entity_type: 'order', entity_id: o.id });
+    for (const m of members) {
+      await logActivity(null, user.id, ACTIONS.ORDER_ASSIGNED, { order_ref: m.o.order_ref, delivery_card_id: card.id }, { entity_type: 'order', entity_id: m.o.id });
+    }
   }
 
   // Every candidate lost its claim (raced) or failed — clean up the empty card.
