@@ -42,12 +42,15 @@ export async function POST(req: NextRequest) {
   }
   const { user } = ctx;
 
-  const parsed = await parseBody<{ order_ids: string[] }>(req);
+  const parsed = await parseBody<{ order_ids: string[]; target_card_id?: string }>(req);
   if ('error' in parsed) return parsed.error;
   const orderIds = Array.isArray(parsed.data.order_ids) ? parsed.data.order_ids.filter(Boolean) : [];
   if (orderIds.length === 0) {
     return NextResponse.json({ error: 'No orders provided' }, { status: 400 });
   }
+  // When present, add the orders to this existing card instead of creating a new one.
+  const targetCardId = typeof parsed.data.target_card_id === 'string' && parsed.data.target_card_id
+    ? parsed.data.target_card_id : null;
 
   const admin = createSupabaseAdminClient();
 
@@ -85,17 +88,34 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Card destination: first candidate's destination (orders are usually merged by destination).
-  const destination = resolveDest(candidates[0]) || 'Unassigned';
-
-  const { data: card, error: cardErr } = await admin
-    .from('delivery_cards')
-    .insert({ destination, status: 'draft', priority: 'normal', created_by: user.id })
-    .select('id, delivery_ref')
-    .single();
-
-  if (cardErr || !card) {
-    return NextResponse.json({ error: cardErr?.message ?? 'Failed to create delivery card' }, { status: 500 });
+  // Either add to an existing active card, or create a new draft card for these orders.
+  let card: { id: string; delivery_ref: string };
+  const isExistingCard = !!targetCardId;
+  let lockEnabled = false;
+  if (targetCardId) {
+    const { data: target } = await admin
+      .from('delivery_cards')
+      .select('id, delivery_ref, single_customer_lock, status, is_archived, deleted_at')
+      .eq('id', targetCardId)
+      .maybeSingle();
+    if (!target || target.deleted_at || target.is_archived ||
+        !['draft', 'pending_booking', 'booked', 'in_transit'].includes(target.status)) {
+      return NextResponse.json({ error: 'Target delivery card not found or not active' }, { status: 404 });
+    }
+    card = { id: target.id, delivery_ref: target.delivery_ref };
+    lockEnabled = target.single_customer_lock;
+  } else {
+    // Card destination: first candidate's destination (orders are usually merged by destination).
+    const destination = resolveDest(candidates[0]) || 'Unassigned';
+    const { data: created, error: cardErr } = await admin
+      .from('delivery_cards')
+      .insert({ destination, status: 'draft', priority: 'normal', created_by: user.id })
+      .select('id, delivery_ref')
+      .single();
+    if (cardErr || !created) {
+      return NextResponse.json({ error: cardErr?.message ?? 'Failed to create delivery card' }, { status: 500 });
+    }
+    card = created;
   }
 
   const assigned: string[] = [];
@@ -182,58 +202,103 @@ export async function POST(req: NextRequest) {
     assigned.push(o.order_ref);
   }
 
-  // Phase 2: one delivery_customer per customer group. Order values are summed, and the group's
-  // sale orders / line items are combined onto the single customer row.
-  let sortIdx = 0;
-  for (const members of Array.from(groups.values())) {
+  // When adding to an existing card, merge groups into customers already on it (by name) and
+  // enforce single_customer_lock before writing anything.
+  const existingByName = new Map<string, { id: string; order_value: number | null }>();
+  let baseSort = 0;
+  if (isExistingCard) {
+    const { data: existingCusts } = await admin
+      .from('delivery_customers')
+      .select('id, customer_name, sort_order, order_value')
+      .eq('delivery_card_id', card.id);
+    for (const ec of existingCusts ?? []) {
+      existingByName.set((ec.customer_name ?? '').trim().toLowerCase(), { id: ec.id, order_value: ec.order_value });
+      baseSort = Math.max(baseSort, (ec.sort_order ?? 0) + 1);
+    }
+    if (lockEnabled) {
+      const newGroups = Array.from(groups.keys()).filter((k) => !existingByName.has(k)).length;
+      if ((existingCusts?.length ?? 0) + newGroups > 1) {
+        // Release the orders claimed for this batch so they return to the pool unchanged.
+        for (const members of Array.from(groups.values())) {
+          for (const m of members) {
+            await admin.from('orders').update({ status: m.o.status, delivery_card_id: null }).eq('id', m.o.id);
+          }
+        }
+        return NextResponse.json({ error: 'This vehicle is locked to a single customer' }, { status: 409 });
+      }
+    }
+  }
+
+  // Phase 2: one delivery_customer per customer group. Order values are summed and the group's
+  // sale orders / line items are combined; a group whose customer is already on the card merges
+  // into that existing row instead of adding a duplicate.
+  let sortIdx = baseSort;
+  for (const [key, members] of Array.from(groups.entries())) {
     const first = members[0];
     const amounts = members.map((m) => m.o.amount_total).filter((v): v is number => typeof v === 'number');
-    const orderValue = amounts.length ? amounts.reduce((a, b) => a + b, 0) : null;
+    const groupValue = amounts.length ? amounts.reduce((a, b) => a + b, 0) : null;
     const refs = members.map((m) => m.o.order_ref);
+    const existing = existingByName.get(key);
+    let customerId: string;
 
-    const { data: cust, error: custErr } = await admin
-      .from('delivery_customers')
-      .insert({
-        delivery_card_id: card.id,
-        order_id: first.o.id,
-        customer_name: resolveCustomer(first.o),
-        customer_directory_id: first.directoryId,
-        customer_email: first.companyEmail,
-        delivery_location: first.companyLocation,
-        receive_auto_emails: true,
-        notes: refs.length > 1 ? `From orders ${refs.join(', ')}` : `From order ${refs[0]}`,
-        sort_order: sortIdx,
-        order_value: orderValue,
-      })
-      .select('id')
-      .single();
-
-    // If building the customer failed, release every claimed order in the group so none is
-    // silently marked assigned with nothing on the card.
-    if (custErr || !cust) {
-      for (const m of members) {
-        await admin.from('orders').update({ status: m.o.status, delivery_card_id: null }).eq('id', m.o.id);
-        const idx = assigned.indexOf(m.o.order_ref);
-        if (idx >= 0) assigned.splice(idx, 1);
-        skipped.push(m.o.order_ref);
+    if (existing) {
+      customerId = existing.id;
+      if (groupValue !== null) {
+        await admin.from('delivery_customers')
+          .update({ order_value: (existing.order_value ?? 0) + groupValue })
+          .eq('id', existing.id);
       }
-      continue;
+    } else {
+      const { data: cust, error: custErr } = await admin
+        .from('delivery_customers')
+        .insert({
+          delivery_card_id: card.id,
+          order_id: first.o.id,
+          customer_name: resolveCustomer(first.o),
+          customer_directory_id: first.directoryId,
+          customer_email: first.companyEmail,
+          delivery_location: first.companyLocation,
+          receive_auto_emails: true,
+          notes: refs.length > 1 ? `From orders ${refs.join(', ')}` : `From order ${refs[0]}`,
+          sort_order: sortIdx,
+          order_value: groupValue,
+        })
+        .select('id')
+        .single();
+
+      // If building the customer failed, release every claimed order in the group so none is
+      // silently marked assigned with nothing on the card.
+      if (custErr || !cust) {
+        for (const m of members) {
+          await admin.from('orders').update({ status: m.o.status, delivery_card_id: null }).eq('id', m.o.id);
+          const idx = assigned.indexOf(m.o.order_ref);
+          if (idx >= 0) assigned.splice(idx, 1);
+          skipped.push(m.o.order_ref);
+        }
+        continue;
+      }
+      customerId = cust.id;
+      sortIdx++;
     }
-    sortIdx++;
 
     // Link every order of this customer to the delivery_customer (used by unload/release).
-    await admin.from('orders').update({ delivery_customer_id: cust.id }).in('id', members.map((m) => m.o.id));
+    await admin.from('orders').update({ delivery_customer_id: customerId }).in('id', members.map((m) => m.o.id));
 
-    const soNumbers = Array.from(new Set(
+    let soNumbers = Array.from(new Set(
       members.flatMap((m: ClaimedOrder) => m.liveLines.map((l: LiveLine) => l.sale_order_number?.trim())).filter((s): s is string => !!s),
     ));
+    if (existing && soNumbers.length > 0) {
+      const { data: existingSo } = await admin.from('customer_sale_orders').select('sale_order_number').eq('delivery_customer_id', customerId);
+      const have = new Set((existingSo ?? []).map((r) => r.sale_order_number));
+      soNumbers = soNumbers.filter((so) => !have.has(so));
+    }
     if (soNumbers.length > 0) {
       await admin.from('customer_sale_orders').insert(
-        soNumbers.map((so) => ({ delivery_customer_id: cust.id, sale_order_number: so })),
+        soNumbers.map((so) => ({ delivery_customer_id: customerId, sale_order_number: so })),
       );
     }
     const items = members.flatMap((m: ClaimedOrder) => m.liveLines.map((l: LiveLine) => ({
-      delivery_customer_id: cust.id,
+      delivery_customer_id: customerId,
       item_name: l.product_code ? `${l.product_code} - ${l.product_name}` : l.product_name,
       quantity: String(l.qty_ordered),
     })));
@@ -244,16 +309,22 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Every candidate lost its claim (raced) or failed — clean up the empty card.
+  // Every candidate lost its claim (raced) or failed. Only delete the card if we just created it;
+  // never delete an existing target card we were only adding to.
   if (assigned.length === 0) {
-    await admin.from('delivery_cards').delete().eq('id', card.id);
+    if (!isExistingCard) await admin.from('delivery_cards').delete().eq('id', card.id);
     return NextResponse.json(
       { error: `Could not assign any orders (already taken): ${skipped.join(', ')}` },
       { status: 409 },
     );
   }
 
-  await logActivity(card.id, user.id, ACTIONS.DELIVERY_CREATED_FROM_ORDERS, { order_refs: assigned });
+  await logActivity(
+    card.id,
+    user.id,
+    isExistingCard ? ACTIONS.CARD_UPDATED : ACTIONS.DELIVERY_CREATED_FROM_ORDERS,
+    isExistingCard ? { added_order_refs: assigned } : { order_refs: assigned },
+  );
 
-  return NextResponse.json({ card_id: card.id, delivery_ref: card.delivery_ref, assigned, skipped }, { status: 201 });
+  return NextResponse.json({ card_id: card.id, delivery_ref: card.delivery_ref, assigned, skipped }, { status: isExistingCard ? 200 : 201 });
 }

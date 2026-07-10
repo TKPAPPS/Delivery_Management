@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Plus, Search, X, Truck, ExternalLink, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import CreateOrderModal from '@/components/orders/CreateOrderModal';
+import AddOrdersToCardModal from '@/components/orders/AddOrdersToCardModal';
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { useDebouncedCallback } from '@/lib/useDebouncedCallback';
 import Tooltip from '@/components/ui/Tooltip';
@@ -61,6 +62,7 @@ export default function OrdersPoolClient({ initialOrders, initialTotal, pageSize
   const [createOpen, setCreateOpen] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [creatingDelivery, setCreatingDelivery] = useState(false);
+  const [addToCardOpen, setAddToCardOpen] = useState(false);
 
   // Filters (server-side). `search` is the input; `appliedSearch` is the debounced value.
   const [search, setSearch] = useState('');
@@ -269,12 +271,22 @@ export default function OrdersPoolClient({ initialOrders, initialTotal, pageSize
             <button onClick={() => setSelected(new Set())} className="text-sm text-slate-600 hover:text-slate-800 px-2">
               Clear
             </button>
+            <Button size="sm" variant="outline" onClick={() => setAddToCardOpen(true)} disabled={creatingDelivery}>
+              <Plus className="w-4 h-4" /> Add to card
+            </Button>
             <Button size="sm" onClick={createDelivery} loading={creatingDelivery}>
               <Truck className="w-4 h-4" /> Create Delivery
             </Button>
           </div>
         </div>
       )}
+
+      <AddOrdersToCardModal
+        open={addToCardOpen}
+        onClose={() => setAddToCardOpen(false)}
+        orderIds={Array.from(selected)}
+        onDone={() => setSelected(new Set())}
+      />
 
       {/* Table */}
       {orders.length === 0 ? (
