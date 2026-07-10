@@ -250,7 +250,7 @@ export default function CostSplitSection({ card, onUpdated, onRefresh }: CostSpl
               <tfoot>
                 <tr className="border-t border-slate-200 text-slate-700">
                   <td className="py-2 pr-3 font-medium">Total</td>
-                  <td className="py-2 px-3" />
+                  <td className="py-2 px-3 tabular-nums font-semibold text-slate-900">{split.totalValue > 0 ? formatTHB(split.totalValue) : '—'}</td>
                   <td className="py-2 px-3 text-right tabular-nums">{formatTHB(split.baseTotal)}</td>
                   <td className="py-2 px-3 text-right tabular-nums">{split.surchargeTotal > 0 ? `+ ${formatTHB(split.surchargeTotal)}` : '—'}</td>
                   <td className="py-2 pl-3 text-right tabular-nums font-bold text-slate-900">{formatTHB(split.grandTotal)}</td>

@@ -159,6 +159,7 @@ export interface CostSplitRow {
 
 export interface CostSplitResult {
   rows: CostSplitRow[];
+  totalValue: number;
   baseTotal: number;
   surchargeTotal: number;
   grandTotal: number;
@@ -184,7 +185,7 @@ export function computeCostSplit(
 
   const baseTotal = rows.reduce((s, r) => s + r.roundedShare, 0);
   const surchargeTotal = rows.reduce((s, r) => s + r.surcharge, 0);
-  return { rows, baseTotal, surchargeTotal, grandTotal: baseTotal + surchargeTotal, needsValues };
+  return { rows, totalValue, baseTotal, surchargeTotal, grandTotal: baseTotal + surchargeTotal, needsValues };
 }
 
 export function timeAgo(dateString: string): string {
