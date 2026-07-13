@@ -8,6 +8,7 @@ import Badge from '@/components/ui/Badge';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import PartialShipmentModal from './PartialShipmentModal';
 import UnloadCustomerModal from './UnloadCustomerModal';
+import BulkMoveCustomersModal from './BulkMoveCustomersModal';
 import { useToastStore } from '@/store/toastStore';
 import {
   ChevronDown,
@@ -45,6 +46,9 @@ export default function CustomerSection({ customers, card, activeCards, onRefres
   const [newItem, setNewItem] = useState({ item_name: '', quantity: '' });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editFields, setEditFields] = useState({ customer_name: '', customer_email: '', receive_auto_emails: true, delivery_location: '', notes: '', loading_priority: '' });
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkMoveOpen, setBulkMoveOpen] = useState(false);
 
   // Show highest loading priority first (1 = load first); customers without a priority go last.
   const sortedCustomers = [...customers].sort((a, b) => {
@@ -53,7 +57,17 @@ export default function CustomerSection({ customers, card, activeCards, onRefres
     if (ap !== bp) return ap - bp;
     return a.sort_order - b.sort_order;
   });
-  const [savingEdit, setSavingEdit] = useState(false);
+
+  const toggleSelected = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const allSelected = sortedCustomers.length > 0 && sortedCustomers.every((c) => selected.has(c.id));
+  const someSelected = selected.size > 0 && !allSelected;
+  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(sortedCustomers.map((c) => c.id)));
 
   const handleDelete = async () => {
     if (!deleteId) return;
@@ -178,7 +192,33 @@ export default function CustomerSection({ customers, card, activeCards, onRefres
 
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-4">
-      <h3 className="font-semibold text-slate-900 text-sm mb-3">Customers ({customers.length})</h3>
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <div className="flex items-center gap-2">
+          {sortedCustomers.length > 1 && (
+            <input
+              type="checkbox"
+              aria-label="Select all customers"
+              title="Select all"
+              checked={allSelected}
+              ref={(el) => { if (el) el.indeterminate = someSelected; }}
+              onChange={toggleAll}
+              className="rounded border-slate-300 text-crimson-600 focus:ring-crimson-500"
+            />
+          )}
+          <h3 className="font-semibold text-slate-900 text-sm">Customers ({customers.length})</h3>
+        </div>
+        {selected.size > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-crimson-800 font-medium">{selected.size} selected</span>
+            <button onClick={() => setSelected(new Set())} className="text-xs text-slate-500 hover:text-slate-700 px-1">
+              Clear
+            </button>
+            <Button size="sm" variant="outline" onClick={() => setBulkMoveOpen(true)}>
+              <Truck className="w-3.5 h-3.5" /> Move to card
+            </Button>
+          </div>
+        )}
+      </div>
 
       <div className="space-y-2">
         {sortedCustomers.map((cust) => (
@@ -242,6 +282,14 @@ export default function CustomerSection({ customers, card, activeCards, onRefres
                 onClick={() => setExpanded((e) => (e === cust.id ? null : cust.id))}
               >
                 <div className="flex items-center gap-2 min-w-0">
+                  <input
+                    type="checkbox"
+                    aria-label={`Select ${cust.customer_name}`}
+                    checked={selected.has(cust.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={() => toggleSelected(cust.id)}
+                    className="rounded border-slate-300 text-crimson-600 focus:ring-crimson-500 flex-shrink-0"
+                  />
                   {cust.loading_priority != null && (
                     <Tooltip label={`Loading priority ${cust.loading_priority} (1 loads first)`} className="flex-shrink-0">
                       <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-crimson-100 text-crimson-700 text-xs font-semibold">
@@ -445,6 +493,15 @@ export default function CustomerSection({ customers, card, activeCards, onRefres
           onDone={onRefresh}
         />
       )}
+
+      {/* Bulk Move Modal */}
+      <BulkMoveCustomersModal
+        open={bulkMoveOpen}
+        onClose={() => setBulkMoveOpen(false)}
+        customerIds={Array.from(selected)}
+        activeCards={activeCards.filter((c) => c.id !== card.id)}
+        onDone={() => { setSelected(new Set()); onRefresh(); }}
+      />
 
       {/* Delete Confirm */}
       <ConfirmDialog
