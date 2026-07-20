@@ -55,24 +55,28 @@ export default function CreateTaskModal({ open, onClose, onSaved, users, custome
     setDueDate(task?.due_date ?? '');
   }, [open, task]);
 
-  // Debounced order search against the existing Orders Pool endpoint.
+  // Order picker: show open orders to choose from as soon as "Order" is selected,
+  // and filter across all orders as the user types (SO number or customer name).
   useEffect(() => {
-    if (linkType !== 'order' || orderSearch.trim().length < 2) { setOrderResults([]); return; }
+    if (linkType !== 'order' || orderId) { setOrderResults([]); return; }
+    const term = orderSearch.trim();
     const t = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/orders?q=${encodeURIComponent(orderSearch.trim())}&page=1`);
+        // No query -> the open (active/unassigned) orders. Typing -> full search.
+        const qs = term.length >= 2 ? `q=${encodeURIComponent(term)}&page=1` : `status=active&page=1`;
+        const res = await fetch(`/api/orders?${qs}`);
         if (!res.ok) return;
         const data = await res.json();
         setOrderResults(
-          (data.orders ?? []).slice(0, 8).map((o: { id: string; odoo_order_ref?: string; order_ref: string; customer_name_manual?: string }) => ({
+          (data.orders ?? []).slice(0, 10).map((o: { id: string; odoo_order_ref?: string; order_ref: string; customer_name_manual?: string }) => ({
             id: o.id,
             label: `${o.odoo_order_ref || o.order_ref}${o.customer_name_manual ? ' — ' + o.customer_name_manual : ''}`,
           })),
         );
       } catch { /* ignore */ }
-    }, 300);
+    }, term.length >= 2 ? 300 : 0);
     return () => clearTimeout(t);
-  }, [orderSearch, linkType]);
+  }, [orderSearch, linkType, orderId]);
 
   const handleSubmit = async () => {
     if (!title.trim()) { addToast('Please enter a subject', 'error'); return; }
@@ -150,9 +154,12 @@ export default function CreateTaskModal({ open, onClose, onSaved, users, custome
             ) : (
               <>
                 <Input label="Order" value={orderSearch} onChange={(e) => setOrderSearch(e.target.value)} placeholder="Search SO number or customer..." />
-                {orderResults.length > 0 && (
-                  <div className="mt-1 border border-slate-200 rounded-lg divide-y max-h-44 overflow-y-auto">
-                    {orderResults.map((o) => (
+                <div className="mt-1 border border-slate-200 rounded-lg divide-y max-h-48 overflow-y-auto">
+                  <p className="px-3 py-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wide bg-slate-50">
+                    {orderSearch.trim().length >= 2 ? 'Matches' : 'Open orders'}
+                  </p>
+                  {orderResults.length > 0 ? (
+                    orderResults.map((o) => (
                       <button
                         key={o.id}
                         onClick={() => { setOrderId(o.id); setOrderLabel(o.label); setOrderResults([]); }}
@@ -160,9 +167,13 @@ export default function CreateTaskModal({ open, onClose, onSaved, users, custome
                       >
                         {o.label}
                       </button>
-                    ))}
-                  </div>
-                )}
+                    ))
+                  ) : (
+                    <p className="px-3 py-2 text-xs text-slate-400">
+                      {orderSearch.trim().length >= 2 ? 'No matching orders' : 'No open orders — type to search all'}
+                    </p>
+                  )}
+                </div>
               </>
             )}
           </div>
