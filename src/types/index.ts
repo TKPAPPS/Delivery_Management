@@ -83,10 +83,16 @@ export interface Task {
   updated_at: string;
 }
 
+export interface TaskLink {
+  entity_type: TaskEntityType;
+  entity_id: string;
+  label?: string | null; // resolved on read
+}
+
 export interface TaskWithRelations extends Task {
   creator?: { name: string | null; email: string } | null;
   assignee?: { name: string | null; email: string } | null;
-  entity_label?: string | null; // resolved label for the linked customer/order/card
+  links?: TaskLink[]; // a task can link to several entities (e.g. multiple orders)
 }
 
 // In-app notification (the bell). Named to avoid clashing with the DOM `Notification`.

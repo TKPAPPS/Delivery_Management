@@ -87,11 +87,11 @@ export default function TaskCard({ task, currentUserId, currentRole, users, onCh
             <span className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded bg-crimson-50 text-crimson-700">
               {task.assigned_all ? <Users className="w-3 h-3" /> : <User className="w-3 h-3" />}{assigneeName}
             </span>
-            {task.entity_type && (
-              <span className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
-                <Link2 className="w-3 h-3" />{task.entity_label || `${task.entity_type} (deleted)`}
+            {(task.links ?? []).map((l) => (
+              <span key={`${l.entity_type}:${l.entity_id}`} className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                <Link2 className="w-3 h-3" />{l.label || `${l.entity_type} (deleted)`}
               </span>
-            )}
+            ))}
             {task.due_date && (
               <span className={cn('inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded',
                 overdue ? 'bg-red-100 text-red-700' : 'bg-gold-100 text-gold-800')}>

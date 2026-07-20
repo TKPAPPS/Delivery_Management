@@ -283,10 +283,13 @@ sets `tasks.type` default to `'other'` (CHECK allows only `follow_up`/`internal`
 and puts both tables on the `supabase_realtime` publication.
 
 - **Model:** a task has a subject (`title`), optional `body`, an assignee scope
-  (`assigned_all=true` → Everyone; else `assigned_to` a user), an optional polymorphic
-  link (`entity_type` ∈ `customer`/`order`/`delivery_card` + `entity_id`, no FK — same
-  design as elsewhere; label resolved on read), an optional `due_date` (date only),
-  `completed_at` (done), soft-delete `deleted_at`, and `created_by` (always shown).
+  (`assigned_all=true` → Everyone; else `assigned_to` a user), an optional `due_date`
+  (date only), `completed_at` (done), soft-delete `deleted_at`, and `created_by` (always
+  shown). **Links are many** via the `task_links` join table (`task_id`, `entity_type` ∈
+  `customer`/`order`/`delivery_card`, `entity_id`; polymorphic, no FK; `migration_task_links_v1.sql`),
+  so a task can link a customer plus several orders. `src/lib/task-links.ts` centralizes
+  `sanitizeLinks`/`writeTaskLinks` (delete-then-insert) + `resolveLinkLabels` (batch label
+  lookup). The legacy single `tasks.entity_type`/`entity_id` columns remain but are unused.
 - **API:** `GET/POST /api/tasks` (list with `?include_completed`/`?scope=mine`; create),
   `PATCH/DELETE /api/tasks/[id]` (edit/complete/soft-delete). Edit/complete = creator,
   assignee, or admin; delete = creator or admin. Mutations use the service-role client.

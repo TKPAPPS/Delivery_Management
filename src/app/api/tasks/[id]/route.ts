@@ -2,9 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser, createSupabaseAdminClient } from '@/lib/supabase-server';
 import { parseBody } from '@/lib/parse-body';
 import { logActivity, ACTIONS } from '@/lib/activity';
-import type { TaskEntityType } from '@/types';
-
-const ENTITY_TYPES: TaskEntityType[] = ['customer', 'order', 'delivery_card'];
+import { sanitizeLinks, writeTaskLinks } from '@/lib/task-links';
 
 // Creator, assignee, or admin may edit/complete. Creator or admin may delete.
 function canEdit(task: { created_by: string | null; assigned_to: string | null }, userId: string, role: string) {
@@ -45,18 +43,21 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if ('assigned_to' in body && update.assigned_all !== true) {
     update.assigned_to = (body.assigned_to as string) || null;
   }
-  if ('entity_type' in body) {
-    const et = body.entity_type as string | null;
-    update.entity_type = et && ENTITY_TYPES.includes(et as TaskEntityType) ? et : null;
-    update.entity_id = update.entity_type ? ((body.entity_id as string) || null) : null;
-  }
 
-  if (Object.keys(update).length === 0) {
+  const hasLinks = 'links' in body;
+  if (Object.keys(update).length === 0 && !hasLinks) {
     return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
   }
 
-  const { data: updated, error } = await admin.from('tasks').update(update).eq('id', params.id).select('*').single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  let updated = task;
+  if (Object.keys(update).length > 0) {
+    const { data, error } = await admin.from('tasks').update(update).eq('id', params.id).select('*').single();
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    updated = data;
+  }
+  if (hasLinks) {
+    await writeTaskLinks(admin, params.id, sanitizeLinks(body.links));
+  }
 
   const action = 'completed' in body ? (body.completed ? ACTIONS.TASK_COMPLETED : ACTIONS.TASK_UPDATED) : ACTIONS.TASK_UPDATED;
   await logActivity(null, ctx.user.id, action, { title: updated.title }, { entity_type: 'task', entity_id: params.id });
