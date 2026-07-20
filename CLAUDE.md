@@ -304,9 +304,13 @@ and puts both tables on the `supabase_realtime` publication.
   today (Bangkok), calls `sendTaskNotification(..., 'due')`, and stamps `due_notified_at`
   (dedupe). Scheduled daily via `vercel.json` `crons` at `0 1 * * *` (≈08:00 Bangkok).
 - **UI:** `src/app/(protected)/tasks/` (`page.tsx` SSR fetches users + customers for the
-  pickers → `TasksClient.tsx`) with `src/components/tasks/` (`TaskCalendar` month grid,
-  `DayTasksPanel` selected-day + backlog, `TaskCard`, `CreateTaskModal`). Calendar/List
-  toggle; Realtime subscription on `tasks` refetches live.
+  pickers → `TasksClient.tsx`) with `src/components/tasks/`. Four views (Month / Week /
+  Day / List) driven by a single `anchor` Date + `ymd`/`parseYMD` helpers in `utils.ts`:
+  `TaskCalendar` (month grid, task-title pills in cells via `TaskPill`), `WeekView`
+  (7 columns of pills), `DayTasksPanel` (selected day + backlog), `TaskCard`,
+  `CreateTaskModal`. Month/week cells drill into Day on click; pills open the edit modal.
+  Realtime subscription on `tasks` refetches live. Overdue is computed with local `ymd`
+  (not UTC) everywhere for consistency.
 
 ## Communications (manual sends from card detail)
 

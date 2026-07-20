@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Check, Pencil, Trash2, User, Users, Link2, CalendarDays } from 'lucide-react';
-import { cn, formatDate } from '@/lib/utils';
+import { cn, formatDate, ymd } from '@/lib/utils';
 import { useToastStore } from '@/store/toastStore';
 import type { TaskWithRelations } from '@/types';
 
@@ -29,7 +29,7 @@ export default function TaskCard({ task, currentUserId, currentRole, users, onCh
     : task.assignee?.name || task.assignee?.email
       || users.find((u) => u.id === task.assigned_to)?.name || 'Unassigned';
 
-  const overdue = !done && task.due_date && task.due_date < new Date().toISOString().slice(0, 10);
+  const overdue = !done && task.due_date && task.due_date < ymd(new Date());
 
   const toggleDone = async () => {
     setBusy(true);

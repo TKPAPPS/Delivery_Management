@@ -1,12 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Plus, CalendarDays, List as ListIcon } from 'lucide-react';
+import { Plus, CalendarDays, List as ListIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { useDebouncedCallback } from '@/lib/useDebouncedCallback';
-import { cn } from '@/lib/utils';
+import { cn, ymd, parseYMD } from '@/lib/utils';
 import Button from '@/components/ui/Button';
-import TaskCalendar, { ymd } from '@/components/tasks/TaskCalendar';
+import TaskCalendar from '@/components/tasks/TaskCalendar';
+import WeekView from '@/components/tasks/WeekView';
 import DayTasksPanel from '@/components/tasks/DayTasksPanel';
 import TaskCard from '@/components/tasks/TaskCard';
 import CreateTaskModal, { type UserOption, type CustomerOption } from '@/components/tasks/CreateTaskModal';
@@ -19,15 +20,18 @@ interface Props {
   customers: CustomerOption[];
 }
 
+type View = 'month' | 'week' | 'day' | 'list';
+
 export default function TasksClient({ currentUserId, currentRole, users, customers }: Props) {
   const today = useMemo(() => ymd(new Date()), []);
   const [tasks, setTasks] = useState<TaskWithRelations[]>([]);
-  const [view, setView] = useState<'calendar' | 'list'>('calendar');
-  const [month, setMonth] = useState(() => new Date());
-  const [selectedDate, setSelectedDate] = useState(today);
+  const [view, setView] = useState<View>('month');
+  const [anchor, setAnchor] = useState<Date>(() => new Date());
   const [showCompleted, setShowCompleted] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<TaskWithRelations | null>(null);
+
+  const selected = ymd(anchor);
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -40,7 +44,6 @@ export default function TasksClient({ currentUserId, currentRole, users, custome
 
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
 
-  // Live refresh when any task changes.
   const debouncedRefetch = useDebouncedCallback(fetchTasks, 400);
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
@@ -63,7 +66,7 @@ export default function TasksClient({ currentUserId, currentRole, users, custome
     return m;
   }, [tasks]);
 
-  const dayTasks = useMemo(() => tasksByDate.get(selectedDate) ?? [], [tasksByDate, selectedDate]);
+  const dayTasks = useMemo(() => tasksByDate.get(selected) ?? [], [tasksByDate, selected]);
   const backlog = useMemo(
     () => tasks.filter((t) => !t.completed_at && (!t.due_date || t.due_date < today)),
     [tasks, today],
@@ -71,10 +74,30 @@ export default function TasksClient({ currentUserId, currentRole, users, custome
 
   const openCreate = () => { setEditing(null); setModalOpen(true); };
   const openEdit = (t: TaskWithRelations) => { setEditing(t); setModalOpen(true); };
+  const openDay = (key: string) => { setAnchor(parseYMD(key)); setView('day'); };
 
-  const shiftMonth = (delta: number) => setMonth((m) => new Date(m.getFullYear(), m.getMonth() + delta, 1));
+  // Navigation adapts to the active calendar view.
+  const nav = (delta: number) => setAnchor((a) => {
+    const d = new Date(a);
+    if (view === 'month') d.setMonth(d.getMonth() + delta);
+    else if (view === 'week') d.setDate(d.getDate() + delta * 7);
+    else d.setDate(d.getDate() + delta);
+    return d;
+  });
 
-  // List view groups.
+  const navLabel = useMemo(() => {
+    if (view === 'month') return anchor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    if (view === 'day') return anchor.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
+    // week range
+    const offset = (anchor.getDay() + 6) % 7;
+    const mon = new Date(anchor); mon.setDate(anchor.getDate() - offset);
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    const sameMonth = mon.getMonth() === sun.getMonth();
+    const mL = mon.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+    const sL = sun.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    return sameMonth ? `${mon.getDate()}-${sL}` : `${mL} to ${sL}`;
+  }, [view, anchor]);
+
   const groups = useMemo(() => {
     const overdue: TaskWithRelations[] = [];
     const todayList: TaskWithRelations[] = [];
@@ -91,44 +114,82 @@ export default function TasksClient({ currentUserId, currentRole, users, custome
     return { overdue, todayList, upcoming, undated, completed };
   }, [tasks, today]);
 
+  const VIEWS: Array<{ key: View; label: string }> = [
+    { key: 'month', label: 'Month' },
+    { key: 'week', label: 'Week' },
+    { key: 'day', label: 'Day' },
+    { key: 'list', label: 'List' },
+  ];
+
+  const Backlog = () => backlog.length > 0 ? (
+    <div className="mt-5">
+      <h3 className="text-sm font-semibold text-slate-500 mb-2">Backlog · undated &amp; overdue ({backlog.length})</h3>
+      <div className="grid sm:grid-cols-2 gap-2">
+        {backlog.map((t) => (
+          <TaskCard key={t.id} task={t} currentUserId={currentUserId} currentRole={currentRole} users={users} onChanged={fetchTasks} onEdit={openEdit} />
+        ))}
+      </div>
+    </div>
+  ) : null;
+
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto">
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div>
           <h1 className="text-xl font-bold text-slate-900">Tasks</h1>
           <p className="text-sm text-slate-500">Shared reminders and to-dos for the team.</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex text-xs border border-slate-200 rounded-lg overflow-hidden">
-            <button onClick={() => setView('calendar')} className={cn('px-3 py-1.5 flex items-center gap-1', view === 'calendar' ? 'bg-crimson-600 text-white' : 'text-slate-600 hover:bg-slate-50')}>
-              <CalendarDays className="w-3.5 h-3.5" /> Calendar
-            </button>
-            <button onClick={() => setView('list')} className={cn('px-3 py-1.5 flex items-center gap-1', view === 'list' ? 'bg-crimson-600 text-white' : 'text-slate-600 hover:bg-slate-50')}>
-              <ListIcon className="w-3.5 h-3.5" /> List
-            </button>
+            {VIEWS.map((v) => (
+              <button
+                key={v.key}
+                onClick={() => setView(v.key)}
+                className={cn('px-3 py-1.5 flex items-center gap-1', view === v.key ? 'bg-crimson-600 text-white' : 'text-slate-600 hover:bg-slate-50')}
+              >
+                {v.key === 'list' ? <ListIcon className="w-3.5 h-3.5" /> : <CalendarDays className="w-3.5 h-3.5" />}
+                {v.label}
+              </button>
+            ))}
           </div>
           <Button onClick={openCreate} size="sm"><Plus className="w-4 h-4" /> New Task</Button>
         </div>
       </div>
 
-      <label className="flex items-center gap-2 text-xs text-slate-500 mb-3 cursor-pointer w-fit">
-        <input type="checkbox" checked={showCompleted} onChange={(e) => setShowCompleted(e.target.checked)} />
-        Show completed
-      </label>
+      {/* Toolbar: date navigation (calendar views) + show completed */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+        {view !== 'list' ? (
+          <div className="flex items-center gap-2">
+            <button onClick={() => nav(-1)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600" aria-label="Previous"><ChevronLeft className="w-4 h-4" /></button>
+            <span className="text-sm font-semibold text-slate-800 min-w-[9rem] text-center">{navLabel}</span>
+            <button onClick={() => nav(1)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600" aria-label="Next"><ChevronRight className="w-4 h-4" /></button>
+            <button onClick={() => setAnchor(new Date())} className="text-xs px-2.5 py-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">Today</button>
+          </div>
+        ) : <span />}
+        <label className="flex items-center gap-2 text-xs text-slate-500 cursor-pointer">
+          <input type="checkbox" checked={showCompleted} onChange={(e) => setShowCompleted(e.target.checked)} />
+          Show completed
+        </label>
+      </div>
 
-      {view === 'calendar' ? (
-        <div className="grid lg:grid-cols-[1.4fr_1fr] gap-5">
-          <TaskCalendar
-            month={month}
-            tasksByDate={tasksByDate}
-            selectedDate={selectedDate}
-            today={today}
-            onSelectDate={setSelectedDate}
-            onPrevMonth={() => shiftMonth(-1)}
-            onNextMonth={() => shiftMonth(1)}
-          />
+      {view === 'month' && (
+        <>
+          <TaskCalendar month={anchor} tasksByDate={tasksByDate} today={today} onOpenDay={openDay} onEdit={openEdit} />
+          <Backlog />
+        </>
+      )}
+
+      {view === 'week' && (
+        <>
+          <WeekView anchor={anchor} tasksByDate={tasksByDate} today={today} onOpenDay={openDay} onEdit={openEdit} />
+          <Backlog />
+        </>
+      )}
+
+      {view === 'day' && (
+        <div className="max-w-2xl">
           <DayTasksPanel
-            selectedDate={selectedDate}
+            selectedDate={selected}
             today={today}
             dayTasks={dayTasks}
             backlog={backlog}
@@ -139,7 +200,9 @@ export default function TasksClient({ currentUserId, currentRole, users, custome
             onEdit={openEdit}
           />
         </div>
-      ) : (
+      )}
+
+      {view === 'list' && (
         <div className="space-y-6 max-w-2xl">
           {([
             ['Overdue', groups.overdue],

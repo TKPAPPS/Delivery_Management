@@ -19,6 +19,17 @@ export function formatDate(dateString: string | null | undefined, timeZone?: str
   });
 }
 
+// Local YYYY-MM-DD for a Date (task due_date is a plain date; team works in one timezone).
+export function ymd(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// Parse a YYYY-MM-DD string into a local Date at midnight (avoids UTC shifting).
+export function parseYMD(s: string): Date {
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
+}
+
 export function formatDateTime(dateString: string | null | undefined): string {
   if (!dateString) return '—';
   const date = new Date(dateString);

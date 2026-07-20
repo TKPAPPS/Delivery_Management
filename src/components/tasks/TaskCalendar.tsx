@@ -1,30 +1,23 @@
 'use client';
 
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, ymd } from '@/lib/utils';
+import TaskPill from './TaskPill';
 import type { TaskWithRelations } from '@/types';
-
-export function ymd(d: Date): string {
-  // Local YYYY-MM-DD (due_date is a plain date; the team works in one timezone).
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
 
 interface Props {
   month: Date; // any date within the shown month
   tasksByDate: Map<string, TaskWithRelations[]>;
-  selectedDate: string;
   today: string;
-  onSelectDate: (ymd: string) => void;
-  onPrevMonth: () => void;
-  onNextMonth: () => void;
+  onOpenDay: (ymd: string) => void;
+  onEdit: (task: TaskWithRelations) => void;
 }
 
 const DOW = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+const MAX_PILLS = 3;
 
-export default function TaskCalendar({ month, tasksByDate, selectedDate, today, onSelectDate, onPrevMonth, onNextMonth }: Props) {
+export default function TaskCalendar({ month, tasksByDate, today, onOpenDay, onEdit }: Props) {
   const first = new Date(month.getFullYear(), month.getMonth(), 1);
-  // Monday-based offset for the grid start.
-  const offset = (first.getDay() + 6) % 7;
+  const offset = (first.getDay() + 6) % 7; // Monday-based
   const gridStart = new Date(first);
   gridStart.setDate(first.getDate() - offset);
 
@@ -35,51 +28,49 @@ export default function TaskCalendar({ month, tasksByDate, selectedDate, today, 
     days.push(d);
   }
 
-  const monthLabel = first.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-3 sm:p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-slate-900">{monthLabel}</h3>
-        <div className="flex items-center gap-1">
-          <button onClick={onPrevMonth} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600" aria-label="Previous month">
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <button onClick={onNextMonth} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600" aria-label="Next month">
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-7 gap-1">
+    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+      <div className="grid grid-cols-7 border-b border-slate-100">
         {DOW.map((d) => (
-          <div key={d} className="text-[10px] text-slate-400 uppercase tracking-wide text-center pb-1">{d}</div>
+          <div key={d} className="text-[10px] text-slate-400 uppercase tracking-wide text-center py-1.5">{d}</div>
         ))}
-        {days.map((d) => {
+      </div>
+      <div className="grid grid-cols-7">
+        {days.map((d, i) => {
           const key = ymd(d);
           const inMonth = d.getMonth() === first.getMonth();
-          const count = tasksByDate.get(key)?.filter((t) => !t.completed_at).length ?? 0;
-          const isSelected = key === selectedDate;
           const isToday = key === today;
+          const items = (tasksByDate.get(key) ?? []).filter((t) => !t.completed_at);
+          const shown = items.slice(0, MAX_PILLS);
+          const extra = items.length - shown.length;
           return (
-            <button
+            <div
               key={key}
-              onClick={() => onSelectDate(key)}
+              role="button"
+              tabIndex={0}
+              onClick={() => onOpenDay(key)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenDay(key); } }}
               className={cn(
-                'relative aspect-square rounded-md text-xs p-1 flex flex-col items-start border transition-colors',
-                inMonth ? 'bg-white text-slate-800' : 'bg-slate-50 text-slate-300',
-                isSelected ? 'border-crimson-500 ring-1 ring-crimson-500' : 'border-slate-100 hover:border-slate-300',
+                'min-h-[92px] text-left p-1.5 border-b border-r border-slate-100 flex flex-col gap-1 hover:bg-slate-50 transition-colors cursor-pointer outline-none focus:bg-slate-50',
+                (i + 1) % 7 === 0 && 'border-r-0',
+                !inMonth && 'bg-slate-50/60',
               )}
             >
-              <span className={cn('font-medium', isToday && 'bg-crimson-600 text-white rounded-full w-5 h-5 flex items-center justify-center')}>
+              <span className={cn(
+                'text-xs font-medium self-start',
+                isToday ? 'bg-crimson-600 text-white rounded-full w-5 h-5 flex items-center justify-center' : inMonth ? 'text-slate-700' : 'text-slate-300',
+              )}>
                 {d.getDate()}
               </span>
-              {count > 0 && (
-                <span className="absolute bottom-1 right-1 text-[9px] font-semibold text-crimson-700 bg-crimson-50 rounded-full px-1.5 min-w-[16px] text-center">
-                  {count}
-                </span>
-              )}
-            </button>
+              <div className="flex flex-col gap-0.5">
+                {shown.map((t) => (
+                  <TaskPill key={t.id} task={t} today={today} onClick={() => onEdit(t)} />
+                ))}
+                {extra > 0 && (
+                  <span className="text-[10px] text-slate-400 pl-1">+{extra} more</span>
+                )}
+              </div>
+            </div>
           );
         })}
       </div>
