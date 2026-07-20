@@ -35,6 +35,14 @@ export default function Toast({ toast }: ToastProps) {
     >
       <div className="flex-shrink-0 mt-0.5">{icons[toast.type]}</div>
       <p className="flex-1 text-sm text-slate-700">{toast.message}</p>
+      {toast.action && (
+        <button
+          onClick={() => { toast.action!.onClick(); removeToast(toast.id); }}
+          className="flex-shrink-0 text-sm font-semibold text-crimson-700 hover:text-crimson-800 transition-colors"
+        >
+          {toast.action.label}
+        </button>
+      )}
       <button
         onClick={() => removeToast(toast.id)}
         className="flex-shrink-0 text-slate-400 hover:text-slate-600 transition-colors"

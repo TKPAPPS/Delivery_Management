@@ -12,12 +12,16 @@ interface Props {
   currentUserId: string;
   currentRole: string;
   users: Array<{ id: string; name: string | null; email: string }>;
-  onChanged: () => void;
-  onEdit: (task: TaskWithRelations) => void;
+  onToggleComplete: (task: TaskWithRelations, next: boolean) => void;
+  onOpenDetail: (task: TaskWithRelations) => void;
 }
 
-export default function DayTasksPanel({ selectedDate, today, dayTasks, backlog, currentUserId, currentRole, users, onChanged, onEdit }: Props) {
+export default function DayTasksPanel({ selectedDate, today, dayTasks, backlog, currentUserId, currentRole, users, onToggleComplete, onOpenDetail }: Props) {
   const dayLabel = selectedDate === today ? 'Today' : formatDate(selectedDate);
+
+  const render = (t: TaskWithRelations) => (
+    <TaskCard key={t.id} task={t} currentUserId={currentUserId} currentRole={currentRole} users={users} onToggleComplete={onToggleComplete} onOpenDetail={onOpenDetail} />
+  );
 
   return (
     <div className="space-y-5">
@@ -26,22 +30,14 @@ export default function DayTasksPanel({ selectedDate, today, dayTasks, backlog, 
         {dayTasks.length === 0 ? (
           <p className="text-xs text-slate-400">Nothing scheduled for this day.</p>
         ) : (
-          <div className="space-y-2">
-            {dayTasks.map((t) => (
-              <TaskCard key={t.id} task={t} currentUserId={currentUserId} currentRole={currentRole} users={users} onChanged={onChanged} onEdit={onEdit} />
-            ))}
-          </div>
+          <div className="space-y-2">{dayTasks.map(render)}</div>
         )}
       </div>
 
       {backlog.length > 0 && (
         <div>
           <h3 className="text-sm font-semibold text-slate-500 mb-2">Backlog · undated &amp; overdue</h3>
-          <div className="space-y-2">
-            {backlog.map((t) => (
-              <TaskCard key={t.id} task={t} currentUserId={currentUserId} currentRole={currentRole} users={users} onChanged={onChanged} onEdit={onEdit} />
-            ))}
-          </div>
+          <div className="space-y-2">{backlog.map(render)}</div>
         </div>
       )}
     </div>

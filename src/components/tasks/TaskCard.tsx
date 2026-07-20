@@ -1,9 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Check, Pencil, Trash2, User, Users, Link2, CalendarDays } from 'lucide-react';
+import { Check, User, Users, Link2, CalendarDays } from 'lucide-react';
 import { cn, formatDate, ymd } from '@/lib/utils';
-import { useToastStore } from '@/store/toastStore';
 import type { TaskWithRelations } from '@/types';
 
 interface Props {
@@ -11,69 +9,39 @@ interface Props {
   currentUserId: string;
   currentRole: string;
   users: Array<{ id: string; name: string | null; email: string }>;
-  onChanged: () => void;
-  onEdit: (task: TaskWithRelations) => void;
+  onToggleComplete: (task: TaskWithRelations, next: boolean) => void;
+  onOpenDetail: (task: TaskWithRelations) => void;
 }
 
-export default function TaskCard({ task, currentUserId, currentRole, users, onChanged, onEdit }: Props) {
-  const addToast = useToastStore((s) => s.addToast);
-  const [busy, setBusy] = useState(false);
-
-  const canEdit = currentRole === 'admin' || task.created_by === currentUserId || task.assigned_to === currentUserId;
-  const canDelete = currentRole === 'admin' || task.created_by === currentUserId;
+export default function TaskCard({ task, currentUserId, currentRole, users, onToggleComplete, onOpenDetail }: Props) {
   const done = !!task.completed_at;
+  // Shared "Everyone" tasks can be ticked off by anyone active.
+  const canComplete = currentRole === 'admin' || task.created_by === currentUserId || task.assigned_to === currentUserId || task.assigned_all;
 
   const creatorName = task.creator?.name || task.creator?.email || 'someone';
   const assigneeName = task.assigned_all
     ? 'Everyone'
-    : task.assignee?.name || task.assignee?.email
-      || users.find((u) => u.id === task.assigned_to)?.name || 'Unassigned';
-
-  const overdue = !done && task.due_date && task.due_date < ymd(new Date());
-
-  const toggleDone = async () => {
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/tasks/${task.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ completed: !done }),
-      });
-      if (!res.ok) throw new Error();
-      onChanged();
-    } catch {
-      addToast('Failed to update task', 'error');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const remove = async () => {
-    if (!confirm('Delete this task?')) return;
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error();
-      addToast('Task deleted', 'success');
-      onChanged();
-    } catch {
-      addToast('Failed to delete task', 'error');
-    } finally {
-      setBusy(false);
-    }
-  };
+    : task.assignee?.name || task.assignee?.email || users.find((u) => u.id === task.assigned_to)?.name || 'Unassigned';
+  const overdue = !done && !!task.due_date && task.due_date < ymd(new Date());
 
   return (
-    <div className={cn('bg-white border rounded-lg p-3', overdue ? 'border-red-200' : 'border-slate-200', done && 'opacity-60')}>
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onOpenDetail(task)}
+      onKeyDown={(e) => { if (e.key === 'Enter') onOpenDetail(task); }}
+      className={cn('bg-white border rounded-lg p-3 cursor-pointer hover:border-slate-300 transition-colors outline-none focus:border-crimson-400',
+        overdue ? 'border-red-200' : 'border-slate-200', done && 'opacity-60')}
+    >
       <div className="flex items-start gap-2.5">
         <button
-          onClick={toggleDone}
-          disabled={busy || !canEdit}
-          title={canEdit ? (done ? 'Mark not done' : 'Mark done') : 'Only the creator or assignee can complete this'}
+          onClick={(e) => { e.stopPropagation(); if (canComplete) onToggleComplete(task, !done); }}
+          disabled={!canComplete}
+          title={canComplete ? (done ? 'Mark not done' : 'Mark done') : 'Only the creator or assignee can complete this'}
           className={cn(
             'mt-0.5 w-5 h-5 rounded border flex items-center justify-center flex-none transition-colors',
             done ? 'bg-crimson-600 border-crimson-600 text-white' : 'border-slate-300 hover:border-crimson-500',
-            !canEdit && 'opacity-50 cursor-not-allowed',
+            !canComplete && 'opacity-50 cursor-not-allowed',
           )}
         >
           {done && <Check className="w-3.5 h-3.5" />}
@@ -81,7 +49,7 @@ export default function TaskCard({ task, currentUserId, currentRole, users, onCh
 
         <div className="min-w-0 flex-1">
           <p className={cn('text-sm font-semibold text-slate-900', done && 'line-through')}>{task.title}</p>
-          {task.body && <p className="text-xs text-slate-600 mt-0.5 whitespace-pre-wrap">{task.body}</p>}
+          {task.body && <p className="text-xs text-slate-600 mt-0.5 whitespace-pre-wrap line-clamp-2">{task.body}</p>}
 
           <div className="flex flex-wrap items-center gap-1.5 mt-2">
             <span className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded bg-crimson-50 text-crimson-700">
@@ -102,21 +70,6 @@ export default function TaskCard({ task, currentUserId, currentRole, users, onCh
 
           <p className="text-[11px] text-slate-400 mt-1.5">by {creatorName}</p>
         </div>
-
-        {(canEdit || canDelete) && (
-          <div className="flex items-center gap-1 flex-none">
-            {canEdit && (
-              <button onClick={() => onEdit(task)} disabled={busy} className="p-1 text-slate-400 hover:text-slate-700" title="Edit">
-                <Pencil className="w-3.5 h-3.5" />
-              </button>
-            )}
-            {canDelete && (
-              <button onClick={remove} disabled={busy} className="p-1 text-slate-400 hover:text-red-600" title="Delete">
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );

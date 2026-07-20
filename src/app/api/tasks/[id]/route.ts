@@ -4,10 +4,7 @@ import { parseBody } from '@/lib/parse-body';
 import { logActivity, ACTIONS } from '@/lib/activity';
 import { sanitizeLinks, writeTaskLinks } from '@/lib/task-links';
 
-// Creator, assignee, or admin may edit/complete. Creator or admin may delete.
-function canEdit(task: { created_by: string | null; assigned_to: string | null }, userId: string, role: string) {
-  return role === 'admin' || task.created_by === userId || task.assigned_to === userId;
-}
+const EDITABLE_KEYS = ['title', 'body', 'due_date', 'assigned_all', 'assigned_to', 'links'];
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const ctx = await getSessionUser();
@@ -20,7 +17,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const admin = createSupabaseAdminClient();
   const { data: task } = await admin.from('tasks').select('*').eq('id', params.id).is('deleted_at', null).single();
   if (!task) return NextResponse.json({ error: 'Task not found' }, { status: 404 });
-  if (!canEdit(task, ctx.user.id, ctx.profile.role)) {
+
+  // Editing fields needs creator/assignee/admin. Completing is looser: a shared
+  // "Everyone" task can be ticked off by any active user.
+  const isPrivileged = ctx.profile.role === 'admin' || task.created_by === ctx.user.id || task.assigned_to === ctx.user.id;
+  const touchesFields = EDITABLE_KEYS.some((k) => k in body);
+  const allowed = touchesFields ? isPrivileged : (isPrivileged || task.assigned_all);
+  if (!allowed) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

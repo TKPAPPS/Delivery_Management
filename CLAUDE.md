@@ -308,9 +308,14 @@ and puts both tables on the `supabase_realtime` publication.
   Day / List) driven by a single `anchor` Date + `ymd`/`parseYMD` helpers in `utils.ts`:
   `TaskCalendar` (month grid, task-title pills in cells via `TaskPill`), `WeekView`
   (7 columns of pills), `DayTasksPanel` (selected day + backlog), `TaskCard`,
-  `CreateTaskModal`. Month/week cells drill into Day on click; pills open the edit modal.
-  Realtime subscription on `tasks` refetches live. Overdue is computed with local `ymd`
-  (not UTC) everywhere for consistency.
+  `CreateTaskModal`, `TaskDetailModal`. Clicking a task (pill or card) opens the
+  **detail modal** (view + Mark done / Edit / Delete); clicking a day cell drills into Day.
+  Completion is **optimistic** with an Undo toast — `toggleComplete` in `TasksClient`
+  updates state immediately, PATCHes `{completed}`, and reverts on failure (`toastStore`
+  gained an optional `action` button for Undo). A shared "Everyone" task can be completed
+  by any active user (PATCH allows completion-only when `assigned_all`; field edits still
+  require creator/assignee/admin). Realtime subscription on `tasks` refetches live. Overdue
+  is computed with local `ymd` (not UTC) everywhere for consistency.
 
 ## Communications (manual sends from card detail)
 

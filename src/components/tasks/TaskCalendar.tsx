@@ -9,13 +9,13 @@ interface Props {
   tasksByDate: Map<string, TaskWithRelations[]>;
   today: string;
   onOpenDay: (ymd: string) => void;
-  onEdit: (task: TaskWithRelations) => void;
+  onOpenDetail: (task: TaskWithRelations) => void;
 }
 
 const DOW = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
 const MAX_PILLS = 3;
 
-export default function TaskCalendar({ month, tasksByDate, today, onOpenDay, onEdit }: Props) {
+export default function TaskCalendar({ month, tasksByDate, today, onOpenDay, onOpenDetail }: Props) {
   const first = new Date(month.getFullYear(), month.getMonth(), 1);
   const offset = (first.getDay() + 6) % 7; // Monday-based
   const gridStart = new Date(first);
@@ -64,7 +64,7 @@ export default function TaskCalendar({ month, tasksByDate, today, onOpenDay, onE
               </span>
               <div className="flex flex-col gap-0.5">
                 {shown.map((t) => (
-                  <TaskPill key={t.id} task={t} today={today} onClick={() => onEdit(t)} />
+                  <TaskPill key={t.id} task={t} today={today} onClick={() => onOpenDetail(t)} />
                 ))}
                 {extra > 0 && (
                   <span className="text-[10px] text-slate-400 pl-1">+{extra} more</span>

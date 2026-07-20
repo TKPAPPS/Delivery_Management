@@ -9,12 +9,12 @@ interface Props {
   tasksByDate: Map<string, TaskWithRelations[]>;
   today: string;
   onOpenDay: (ymd: string) => void;
-  onEdit: (task: TaskWithRelations) => void;
+  onOpenDetail: (task: TaskWithRelations) => void;
 }
 
 const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-export default function WeekView({ anchor, tasksByDate, today, onOpenDay, onEdit }: Props) {
+export default function WeekView({ anchor, tasksByDate, today, onOpenDay, onOpenDetail }: Props) {
   const offset = (anchor.getDay() + 6) % 7; // Monday-based
   const monday = new Date(anchor);
   monday.setDate(anchor.getDate() - offset);
@@ -45,7 +45,7 @@ export default function WeekView({ anchor, tasksByDate, today, onOpenDay, onEdit
               {items.length === 0 ? (
                 <span className="text-[11px] text-slate-300 px-1">·</span>
               ) : (
-                items.map((t) => <TaskPill key={t.id} task={t} today={today} onClick={() => onEdit(t)} />)
+                items.map((t) => <TaskPill key={t.id} task={t} today={today} onClick={() => onOpenDetail(t)} />)
               )}
             </div>
           </div>

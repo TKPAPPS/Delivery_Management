@@ -11,6 +11,8 @@ import WeekView from '@/components/tasks/WeekView';
 import DayTasksPanel from '@/components/tasks/DayTasksPanel';
 import TaskCard from '@/components/tasks/TaskCard';
 import CreateTaskModal, { type UserOption, type CustomerOption } from '@/components/tasks/CreateTaskModal';
+import TaskDetailModal from '@/components/tasks/TaskDetailModal';
+import { useToastStore } from '@/store/toastStore';
 import type { TaskWithRelations } from '@/types';
 
 interface Props {
@@ -30,6 +32,8 @@ export default function TasksClient({ currentUserId, currentRole, users, custome
   const [showCompleted, setShowCompleted] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<TaskWithRelations | null>(null);
+  const [detailTask, setDetailTask] = useState<TaskWithRelations | null>(null);
+  const addToast = useToastStore((s) => s.addToast);
 
   const selected = ymd(anchor);
 
@@ -73,8 +77,28 @@ export default function TasksClient({ currentUserId, currentRole, users, custome
   );
 
   const openCreate = () => { setEditing(null); setModalOpen(true); };
-  const openEdit = (t: TaskWithRelations) => { setEditing(t); setModalOpen(true); };
+  const openEdit = (t: TaskWithRelations) => { setDetailTask(null); setEditing(t); setModalOpen(true); };
+  const openDetail = (t: TaskWithRelations) => setDetailTask(t);
   const openDay = (key: string) => { setAnchor(parseYMD(key)); setView('day'); };
+
+  // Optimistic complete/uncomplete with an Undo toast; Realtime + refetch reconcile.
+  const toggleComplete = useCallback(async (task: TaskWithRelations, next: boolean) => {
+    setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, completed_at: next ? new Date().toISOString() : null } : t)));
+    try {
+      const res = await fetch(`/api/tasks/${task.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completed: next }),
+      });
+      if (!res.ok) throw new Error();
+      if (next) addToast('Task completed', 'success', { action: { label: 'Undo', onClick: () => toggleComplete(task, false) } });
+      else addToast('Marked not done', 'success');
+      fetchTasks();
+    } catch {
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, completed_at: next ? null : task.completed_at } : t)));
+      addToast('Failed to update task', 'error');
+    }
+  }, [addToast, fetchTasks]);
 
   // Navigation adapts to the active calendar view.
   const nav = (delta: number) => setAnchor((a) => {
@@ -126,7 +150,7 @@ export default function TasksClient({ currentUserId, currentRole, users, custome
       <h3 className="text-sm font-semibold text-slate-500 mb-2">Backlog · undated &amp; overdue ({backlog.length})</h3>
       <div className="grid sm:grid-cols-2 gap-2">
         {backlog.map((t) => (
-          <TaskCard key={t.id} task={t} currentUserId={currentUserId} currentRole={currentRole} users={users} onChanged={fetchTasks} onEdit={openEdit} />
+          <TaskCard key={t.id} task={t} currentUserId={currentUserId} currentRole={currentRole} users={users} onToggleComplete={toggleComplete} onOpenDetail={openDetail} />
         ))}
       </div>
     </div>
@@ -174,14 +198,14 @@ export default function TasksClient({ currentUserId, currentRole, users, custome
 
       {view === 'month' && (
         <>
-          <TaskCalendar month={anchor} tasksByDate={tasksByDate} today={today} onOpenDay={openDay} onEdit={openEdit} />
+          <TaskCalendar month={anchor} tasksByDate={tasksByDate} today={today} onOpenDay={openDay} onOpenDetail={openDetail} />
           <Backlog />
         </>
       )}
 
       {view === 'week' && (
         <>
-          <WeekView anchor={anchor} tasksByDate={tasksByDate} today={today} onOpenDay={openDay} onEdit={openEdit} />
+          <WeekView anchor={anchor} tasksByDate={tasksByDate} today={today} onOpenDay={openDay} onOpenDetail={openDetail} />
           <Backlog />
         </>
       )}
@@ -196,8 +220,8 @@ export default function TasksClient({ currentUserId, currentRole, users, custome
             currentUserId={currentUserId}
             currentRole={currentRole}
             users={users}
-            onChanged={fetchTasks}
-            onEdit={openEdit}
+            onToggleComplete={toggleComplete}
+            onOpenDetail={openDetail}
           />
         </div>
       )}
@@ -215,7 +239,7 @@ export default function TasksClient({ currentUserId, currentRole, users, custome
               <h3 className={cn('text-sm font-semibold mb-2', label === 'Overdue' ? 'text-red-600' : 'text-slate-600')}>{label} · {list.length}</h3>
               <div className="space-y-2">
                 {list.map((t) => (
-                  <TaskCard key={t.id} task={t} currentUserId={currentUserId} currentRole={currentRole} users={users} onChanged={fetchTasks} onEdit={openEdit} />
+                  <TaskCard key={t.id} task={t} currentUserId={currentUserId} currentRole={currentRole} users={users} onToggleComplete={toggleComplete} onOpenDetail={openDetail} />
                 ))}
               </div>
             </div>
@@ -232,6 +256,20 @@ export default function TasksClient({ currentUserId, currentRole, users, custome
         customers={customers}
         task={editing}
       />
+
+      {detailTask && (
+        <TaskDetailModal
+          open={!!detailTask}
+          task={detailTask}
+          onClose={() => setDetailTask(null)}
+          currentUserId={currentUserId}
+          currentRole={currentRole}
+          users={users}
+          onToggleComplete={toggleComplete}
+          onEdit={openEdit}
+          onDeleted={fetchTasks}
+        />
+      )}
     </div>
   );
 }
