@@ -44,6 +44,7 @@ export const ACTIONS = {
   CARD_RESTORED: 'card_restored',
   SALE_ORDER_ADDED: 'sale_order_added',
   SALE_ORDER_REMOVED: 'sale_order_removed',
+  SALE_ORDER_MOVED: 'sale_order_moved',
   EXTRA_ITEM_ADDED: 'extra_item_added',
   EXTRA_ITEM_REMOVED: 'extra_item_removed',
   // Order actions (ops platform)

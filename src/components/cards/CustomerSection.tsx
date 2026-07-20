@@ -21,6 +21,7 @@ import {
   Pencil,
   Check,
   MailX,
+  ArrowLeftRight,
 } from 'lucide-react';
 import Input from '@/components/ui/Input';
 import Tooltip from '@/components/ui/Tooltip';
@@ -39,6 +40,7 @@ export default function CustomerSection({ customers, card, activeCards, onRefres
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [partialId, setPartialId] = useState<string | null>(null);
   const [unloadId, setUnloadId] = useState<string | null>(null);
+  const [movingSO, setMovingSO] = useState<{ id: string; label: string; customerName: string } | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [addingSOFor, setAddingSOFor] = useState<string | null>(null);
   const [newSO, setNewSO] = useState('');
@@ -369,7 +371,15 @@ export default function CustomerSection({ customers, card, activeCards, onRefres
                         className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded font-mono"
                       >
                         {so.sale_order_number}
-                        <button onClick={() => handleDeleteSO(so.id)} className="hover:text-red-500 ml-0.5">
+                        <Tooltip label="Move this SO to another card" focusable={false}>
+                          <button
+                            onClick={() => setMovingSO({ id: so.id, label: so.sale_order_number, customerName: cust.customer_name })}
+                            className="hover:text-blue-900 ml-0.5"
+                          >
+                            <ArrowLeftRight className="w-3 h-3" />
+                          </button>
+                        </Tooltip>
+                        <button onClick={() => handleDeleteSO(so.id)} className="hover:text-red-500">
                           <X className="w-3 h-3" />
                         </button>
                       </span>
@@ -489,6 +499,19 @@ export default function CustomerSection({ customers, card, activeCards, onRefres
           onClose={() => setUnloadId(null)}
           customerId={unloadId}
           customerName={customers.find((c) => c.id === unloadId)?.customer_name ?? ''}
+          activeCards={activeCards.filter((c) => c.id !== card.id)}
+          onDone={onRefresh}
+        />
+      )}
+
+      {/* Move single Sale Order Modal */}
+      {movingSO && (
+        <UnloadCustomerModal
+          open={!!movingSO}
+          onClose={() => setMovingSO(null)}
+          customerId=""
+          customerName={movingSO.customerName}
+          saleOrder={{ id: movingSO.id, label: movingSO.label }}
           activeCards={activeCards.filter((c) => c.id !== card.id)}
           onDone={onRefresh}
         />

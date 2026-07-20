@@ -19,6 +19,8 @@ interface UnloadCustomerModalProps {
   customerName: string;
   activeCards: Array<Pick<DeliveryCard, 'id' | 'delivery_ref' | 'destination'>>;
   onDone: () => void;
+  // When set, the modal moves a single sale order (SO chip) instead of the whole customer.
+  saleOrder?: { id: string; label: string };
 }
 
 export default function UnloadCustomerModal({
@@ -28,6 +30,7 @@ export default function UnloadCustomerModal({
   customerName,
   activeCards,
   onDone,
+  saleOrder,
 }: UnloadCustomerModalProps) {
   const addToast = useToastStore((s) => s.addToast);
   const router = useRouter();
@@ -62,33 +65,43 @@ export default function UnloadCustomerModal({
         body = { action: 'unload', destination: 'planning_queue', reason: 'delayed', notes };
       }
 
-      const res = await fetch(`/api/customers/${customerId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ unload: true, ...body }),
-      });
-      if (!res.ok) throw new Error('Failed to unload customer');
+      const res = saleOrder
+        ? await fetch(`/api/sale-orders/${saleOrder.id}/move`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          })
+        : await fetch(`/api/customers/${customerId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ unload: true, ...body }),
+          });
+      if (!res.ok) throw new Error('Failed');
       const resData = await res.json();
-      addToast('Customer unloaded', 'success');
+      addToast(saleOrder ? 'Sale order moved' : 'Customer unloaded', 'success');
       if (resData.source_card_discarded) {
         addToast('Empty card discarded (restorable in History → Deleted)', 'info' as 'success');
       }
       onDone();
       onClose();
-      // Follow the customer to its new home: a freshly-created card, or the move target.
+      // Follow it to its new home: a freshly-created card, or the move target.
       const goTo = resData.newCardId ?? (action === 'move_to_card' ? targetCardId : null);
       if (goTo) router.push(`/cards/${goTo}`);
     } catch {
-      addToast('Failed to unload customer', 'error');
+      addToast(saleOrder ? 'Failed to move sale order' : 'Failed to unload customer', 'error');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="Unload / Move Customer" size="md">
+    <Modal open={open} onClose={onClose} title={saleOrder ? `Move Sale Order ${saleOrder.label}` : 'Unload / Move Customer'} size="md">
       <p className="text-sm text-slate-600 mb-4">
-        Choose what to do with <strong>{customerName}</strong>:
+        {saleOrder ? (
+          <>Choose what to do with <strong>{saleOrder.label}</strong> from <strong>{customerName}</strong>:</>
+        ) : (
+          <>Choose what to do with <strong>{customerName}</strong>:</>
+        )}
       </p>
 
       <div className="space-y-3 mb-4">

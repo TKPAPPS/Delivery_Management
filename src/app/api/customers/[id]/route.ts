@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser, createSupabaseAdminClient } from '@/lib/supabase-server';
 import { logActivity, ACTIONS } from '@/lib/activity';
 import { parseBody } from '@/lib/parse-body';
-import { discardCardIfEmpty, followOrderToCard, releaseOrderToPool } from '@/lib/customer-moves';
+import { discardCardIfEmpty, followOrderToCard, releaseOrderToPool, resolveDestinationCard } from '@/lib/customer-moves';
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const ctx = await getSessionUser();
@@ -23,78 +23,44 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (!customer) return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
 
   if (body.unload) {
-    const { action, target_card_id, new_destination, notes, reason } = body;
+    const { action, target_card_id, new_destination, notes, reason } = body as {
+      action?: string;
+      target_card_id?: string;
+      new_destination?: string;
+      notes?: string;
+      reason?: string;
+    };
 
-    if (action === 'move' && target_card_id) {
-      const { error } = await admin
-        .from('delivery_customers')
-        .update({ delivery_card_id: target_card_id, notes: notes || customer.notes })
-        .eq('id', params.id);
+    // Planning Queue is unified with draft cards: unloading a customer spins off a fresh
+    // DRAFT card (move/create pick an existing/new card instead). The customer's sale orders
+    // and extra items follow via FK. Destination resolution is shared with the single-SO move.
+    const dest = await resolveDestinationCard(
+      admin,
+      { action, targetCardId: target_card_id, newDestination: new_destination, reason, fallbackDestination: customer.delivery_location },
+      user.id,
+    );
+    if ('error' in dest) return NextResponse.json({ error: dest.error }, { status: 400 });
 
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-      await logActivity(customer.delivery_card_id, user.id, ACTIONS.CUSTOMER_MOVED, {
-        customer_name: customer.customer_name,
-        target_card_id,
-      });
-
-      await followOrderToCard(admin, customer, target_card_id as string);
-      const discarded = await discardCardIfEmpty(admin, customer.delivery_card_id, user.id);
-      return NextResponse.json({ success: true, source_card_discarded: discarded });
-    }
-
-    if (action === 'create_card' && new_destination) {
-      const { data: newCard, error: cardError } = await admin
-        .from('delivery_cards')
-        .insert({ destination: new_destination, status: 'draft', priority: 'normal', created_by: user.id })
-        .select()
-        .single();
-
-      if (cardError || !newCard) return NextResponse.json({ error: 'Failed to create card' }, { status: 500 });
-
-      await admin.from('delivery_customers').update({ delivery_card_id: newCard.id }).eq('id', params.id);
-
-      await logActivity(customer.delivery_card_id, user.id, ACTIONS.CUSTOMER_MOVED, {
-        customer_name: customer.customer_name,
-        new_card_id: newCard.id,
-      });
-
-      await followOrderToCard(admin, customer, newCard.id);
-      const discarded = await discardCardIfEmpty(admin, customer.delivery_card_id, user.id);
-      return NextResponse.json({ success: true, newCardId: newCard.id, source_card_discarded: discarded });
-    }
-
-    // Planning Queue is unified with draft cards: unloading a customer now spins off
-    // a fresh DRAFT card and moves the customer (and its sale orders / extra items,
-    // which follow via FK) onto it. The draft card shows up in Planning Queue + Dashboard Draft.
-    const { data: queueCard, error: queueErr } = await admin
-      .from('delivery_cards')
-      .insert({
-        destination: customer.delivery_location || 'Unassigned',
-        status: 'draft',
-        priority: 'normal',
-        internal_notes: reason ? `Unloaded: ${reason}` : null,
-        created_by: user.id,
-      })
-      .select()
-      .single();
-
-    if (queueErr || !queueCard) return NextResponse.json({ error: 'Failed to unload customer' }, { status: 500 });
-
-    await admin
+    const { error } = await admin
       .from('delivery_customers')
-      .update({ delivery_card_id: queueCard.id, notes: notes || customer.notes })
+      .update({ delivery_card_id: dest.cardId, notes: notes || customer.notes })
       .eq('id', params.id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    await logActivity(customer.delivery_card_id, user.id, ACTIONS.CUSTOMER_UNLOADED, {
+    const isMove = action === 'move' || action === 'create_card';
+    await logActivity(customer.delivery_card_id, user.id, isMove ? ACTIONS.CUSTOMER_MOVED : ACTIONS.CUSTOMER_UNLOADED, {
       customer_name: customer.customer_name,
-      reason,
-      new_card_id: queueCard.id,
+      to_card_id: dest.cardId,
+      ...(reason ? { reason } : {}),
     });
 
-    await followOrderToCard(admin, customer, queueCard.id);
+    await followOrderToCard(admin, customer, dest.cardId);
     const discarded = await discardCardIfEmpty(admin, customer.delivery_card_id, user.id);
-    return NextResponse.json({ success: true, newCardId: queueCard.id, source_card_discarded: discarded });
+    return NextResponse.json({
+      success: true,
+      newCardId: dest.createdNew ? dest.cardId : undefined,
+      source_card_discarded: discarded,
+    });
   }
 
   const updateData: Record<string, unknown> = {};
