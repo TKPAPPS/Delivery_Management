@@ -5,17 +5,19 @@ import Sidebar from './Sidebar';
 
 interface AppShellProps {
   children: React.ReactNode;
+  userId?: string;
   userEmail?: string;
   userName?: string;
   role?: string;
 }
 
-export default function AppShell({ children, userEmail, userName, role }: AppShellProps) {
+export default function AppShell({ children, userId, userEmail, userName, role }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
     <div className="flex flex-col h-screen bg-white overflow-hidden">
       <Navbar
+        userId={userId}
         userEmail={userEmail}
         userName={userName}
         onMenuClick={() => setSidebarOpen(true)}

@@ -62,6 +62,45 @@ export interface CourierCompany {
   updated_at: string;
 }
 
+// Tasks & Reminders (in-app). Builds on the ops-platform `tasks` table.
+export type TaskEntityType = 'customer' | 'order' | 'delivery_card';
+
+export interface Task {
+  id: string;
+  type: string;
+  title: string;
+  body: string | null;
+  entity_type: TaskEntityType | null;
+  entity_id: string | null;
+  assigned_to: string | null;
+  assigned_all: boolean;
+  created_by: string | null;
+  due_date: string | null;
+  completed_at: string | null;
+  due_notified_at: string | null;
+  deleted_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TaskWithRelations extends Task {
+  creator?: { name: string | null; email: string } | null;
+  assignee?: { name: string | null; email: string } | null;
+  entity_label?: string | null; // resolved label for the linked customer/order/card
+}
+
+// In-app notification (the bell). Named to avoid clashing with the DOM `Notification`.
+export interface AppNotification {
+  id: string;
+  user_id: string;
+  title: string;
+  body: string | null;
+  entity_type: string | null;
+  entity_id: string | null;
+  read_at: string | null;
+  created_at: string;
+}
+
 export interface CargoCompany {
   id: string;
   name: string;

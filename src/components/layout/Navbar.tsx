@@ -4,14 +4,16 @@ import { LogOut, User, Menu } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import NotificationBell from './NotificationBell';
 
 interface NavbarProps {
+  userId?: string;
   userEmail?: string;
   userName?: string;
   onMenuClick?: () => void;
 }
 
-export default function Navbar({ userEmail, userName, onMenuClick }: NavbarProps) {
+export default function Navbar({ userId, userEmail, userName, onMenuClick }: NavbarProps) {
   const router = useRouter();
   const [logoError, setLogoError] = useState(false);
 
@@ -51,6 +53,7 @@ export default function Navbar({ userEmail, userName, onMenuClick }: NavbarProps
       </div>
 
       <div className="flex items-center gap-3">
+        {userId && <NotificationBell userId={userId} />}
         <Link
           href="/account"
           className="flex items-center gap-2 text-sm text-slate-900 hover:text-crimson-700 transition-colors px-2 py-1 rounded-lg hover:bg-crimson-50"

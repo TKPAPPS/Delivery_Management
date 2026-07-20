@@ -274,6 +274,37 @@ A "group" is one row in `line_groups`: `name`, `line_target_id` (the LINE group/
 - **Add a group:** invite the bot to the LINE group → the webhook auto-creates the row; or Add it manually with its target ID. Then tick triggers.
 - **Change the message wording:** edit `buildMessage()` in `src/lib/notifications.ts` — distinct from the customer **email** templates in `message_templates`.
 
+## Tasks & Reminders (in-app)
+
+A shared, lightweight task/reminder module at `/tasks` (nav item for everyone). Built on
+the pre-existing (previously unused) ops-platform `tasks` + `notifications` tables;
+`supabase/migration_tasks_reminders_v1.sql` adds `tasks.assigned_all`, `tasks.due_notified_at`,
+sets `tasks.type` default to `'other'` (CHECK allows only `follow_up`/`internal`/`other`),
+and puts both tables on the `supabase_realtime` publication.
+
+- **Model:** a task has a subject (`title`), optional `body`, an assignee scope
+  (`assigned_all=true` → Everyone; else `assigned_to` a user), an optional polymorphic
+  link (`entity_type` ∈ `customer`/`order`/`delivery_card` + `entity_id`, no FK — same
+  design as elsewhere; label resolved on read), an optional `due_date` (date only),
+  `completed_at` (done), soft-delete `deleted_at`, and `created_by` (always shown).
+- **API:** `GET/POST /api/tasks` (list with `?include_completed`/`?scope=mine`; create),
+  `PATCH/DELETE /api/tasks/[id]` (edit/complete/soft-delete). Edit/complete = creator,
+  assignee, or admin; delete = creator or admin. Mutations use the service-role client.
+- **Notifications are in-app only** (email/LINE deferred). `src/lib/task-notifications.ts`
+  `sendTaskNotification(admin, task, 'created'|'due')` inserts `notifications` rows for the
+  recipients (all active profiles for Everyone, excluding the creator on 'created'; else the
+  single assignee). It's the single choke point where email/LINE get added later.
+- **Bell:** `src/components/layout/NotificationBell.tsx` in the Navbar reads/updates the
+  user's OWN `notifications` rows via the **browser client** (RLS already allows own-row
+  select/update — no API route), with a Realtime subscription filtered `user_id=eq.<me>`.
+- **Due-date reminders:** `GET /api/cron/due-tasks` (Bearer `CRON_SECRET`) sweeps tasks due
+  today (Bangkok), calls `sendTaskNotification(..., 'due')`, and stamps `due_notified_at`
+  (dedupe). Scheduled daily via `vercel.json` `crons` at `0 1 * * *` (≈08:00 Bangkok).
+- **UI:** `src/app/(protected)/tasks/` (`page.tsx` SSR fetches users + customers for the
+  pickers → `TasksClient.tsx`) with `src/components/tasks/` (`TaskCalendar` month grid,
+  `DayTasksPanel` selected-day + backlog, `TaskCard`, `CreateTaskModal`). Calendar/List
+  toggle; Realtime subscription on `tasks` refetches live.
+
 ## Communications (manual sends from card detail)
 
 `src/app/api/communications/route.ts` handles manual LINE and email sends from `CommunicationPanel`.
@@ -343,6 +374,7 @@ Files are uploaded to Supabase Storage bucket `delivery-attachments`. Path forma
 | `RESEND_API_KEY` | Resend email API key | Optional |
 | `RESEND_FROM_EMAIL` | Verified sender address for emails — **must be a domain verified in Resend** | Optional |
 | `NOTIFICATION_EMAIL` | Recipient for system notification emails | Optional |
+| `CRON_SECRET` | Bearer secret for Vercel Cron (`/api/cron/due-tasks`); the route 401s without a matching `Authorization: Bearer` | Optional |
 
 ## Orders (Phase 2)
 

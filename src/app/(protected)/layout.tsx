@@ -31,6 +31,7 @@ export default async function ProtectedLayout({
 
   return (
     <AppShell
+      userId={p.id}
       userEmail={p.email}
       userName={p.name ?? undefined}
       role={p.role}

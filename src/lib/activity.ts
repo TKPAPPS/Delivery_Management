@@ -56,4 +56,9 @@ export const ACTIONS = {
   ORDER_LINE_DELETED: 'order_line_deleted',
   ORDER_ASSIGNED: 'order_assigned',
   DELIVERY_CREATED_FROM_ORDERS: 'delivery_created_from_orders',
+  // Tasks & Reminders
+  TASK_CREATED: 'task_created',
+  TASK_UPDATED: 'task_updated',
+  TASK_COMPLETED: 'task_completed',
+  TASK_DELETED: 'task_deleted',
 } as const;
