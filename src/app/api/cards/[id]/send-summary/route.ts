@@ -3,6 +3,7 @@ import { getSessionUser, createSupabaseAdminClient } from '@/lib/supabase-server
 import { parseBody } from '@/lib/parse-body';
 import { logActivity, ACTIONS } from '@/lib/activity';
 import { formatDate, parseEmailList } from '@/lib/utils';
+import { emailFrom } from '@/lib/email';
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const ctx = await getSessionUser();
@@ -100,7 +101,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: fromEmail,
+        from: emailFrom(fromEmail),
         to: toAddresses,
         subject,
         text: body,

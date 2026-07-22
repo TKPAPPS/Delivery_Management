@@ -1,6 +1,7 @@
 import { createSupabaseAdminClient } from './supabase-server';
 import { pushLineMessage, NOTIFICATION_TRIGGER_MAP } from './line';
 import { getLineMasterEnabled } from './settings';
+import { emailFrom } from './email';
 
 export type NotificationType =
   | 'card_created'
@@ -128,7 +129,7 @@ export async function sendNotification(
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            from: resendFrom,
+            from: emailFrom(resendFrom),
             to: [resendTo],
             subject,
             text: message,

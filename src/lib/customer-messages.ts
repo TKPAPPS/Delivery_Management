@@ -1,5 +1,6 @@
 import { createSupabaseAdminClient } from './supabase-server';
 import { formatDate } from './utils';
+import { emailFrom } from './email';
 import type { DeliveryStatus } from '@/types';
 
 /**
@@ -102,7 +103,7 @@ export async function sendStatusCustomerEmails(
           const res = await fetch('https://api.resend.com/emails', {
             method: 'POST',
             headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ from: resendFrom, to: addresses, subject, text: body }),
+            body: JSON.stringify({ from: emailFrom(resendFrom), to: addresses, subject, text: body }),
           });
           if (res.ok) {
             sendStatus = 'sent';
