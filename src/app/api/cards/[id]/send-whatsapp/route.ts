@@ -44,7 +44,7 @@ const CARD_SELECT = `
   customers:delivery_customers!delivery_card_id(
     id, customer_name, customer_directory_id,
     directory:customer_directory(contact_number),
-    orders(customer_phone),
+    orders:orders!delivery_customer_id(customer_phone),
     sale_orders:customer_sale_orders(sale_order_number),
     extra_items:extra_delivery_items(item_name, quantity)
   )

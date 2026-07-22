@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { CustomerDirectory } from '@/types';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -9,9 +9,10 @@ import Badge from '@/components/ui/Badge';
 import Modal from '@/components/ui/Modal';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useToastStore } from '@/store/toastStore';
-import { BookUser, Plus, Edit, RefreshCw, Trash2 } from 'lucide-react';
+import { BookUser, Plus, Edit, RefreshCw, Trash2, Search, ChevronLeft, ChevronRight, X } from 'lucide-react';
 
 const EMPTY_FORM = { name: '', email: '', contact_number: '', full_address: '', default_delivery_location: '', notes: '' };
+const PAGE_SIZE = 25;
 
 export default function AdminCustomersPage() {
   const addToast = useToastStore((s) => s.addToast);
@@ -23,6 +24,22 @@ export default function AdminCustomersPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [deleteTarget, setDeleteTarget] = useState<CustomerDirectory | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return customers;
+    return customers.filter((c) =>
+      [c.name, c.email, c.contact_number, c.default_delivery_location, c.full_address]
+        .some((v) => (v ?? '').toLowerCase().includes(q)),
+    );
+  }, [customers, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paginated = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const onSearch = (v: string) => { setSearch(v); setPage(1); };
 
   const fetchCustomers = async () => {
     setLoading(true);
@@ -132,6 +149,21 @@ export default function AdminCustomersPage() {
         </div>
       </div>
 
+      <div className="relative mb-4">
+        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+        <input
+          value={search}
+          onChange={(e) => onSearch(e.target.value)}
+          placeholder="Search by name, email, phone, or location..."
+          className="w-full pl-9 pr-9 py-2 text-sm border border-slate-300 rounded-lg bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-crimson-500 focus:border-transparent"
+        />
+        {search && (
+          <button onClick={() => onSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" aria-label="Clear search">
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
       {loading ? (
         <div className="text-center py-12 text-slate-400">Loading...</div>
       ) : (
@@ -148,7 +180,7 @@ export default function AdminCustomersPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {customers.map((c) => (
+              {paginated.map((c) => (
                 <tr key={c.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3">
                     <p className="font-medium text-slate-900">{c.name}</p>
@@ -177,8 +209,30 @@ export default function AdminCustomersPage() {
               ))}
             </tbody>
           </table>
-          {customers.length === 0 && (
-            <div className="text-center py-12 text-slate-400">No customers yet</div>
+          {filtered.length === 0 && (
+            <div className="text-center py-12 text-slate-400">
+              {search ? `No customers match "${search}"` : 'No customers yet'}
+            </div>
+          )}
+        </div>
+      )}
+
+      {!loading && filtered.length > 0 && (
+        <div className="flex items-center justify-between mt-4 text-sm text-slate-600">
+          <span>
+            {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filtered.length)} of {filtered.length}
+            {search && ` (filtered from ${customers.length})`}
+          </span>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={currentPage <= 1}>
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              <span className="text-slate-500">Page {currentPage} of {totalPages}</span>
+              <Button size="sm" variant="outline" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages}>
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
           )}
         </div>
       )}
