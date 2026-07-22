@@ -327,6 +327,36 @@ and puts both tables on the `supabase_realtime` publication.
 - All sends logged to `communication_events` table with sent/failed/skipped status
 - Missing config returns `status: 'skipped'` with clear error message — never fake success
 
+## WhatsApp (customer "delivery on the way")
+
+Customer WhatsApp notifications via the Meta Cloud API (`src/lib/whatsapp.ts`, native fetch,
+mirrors `src/lib/line.ts`). Sends the **approved template** `delivery_on_the_way` (document
+header, so every send carries a PDF). Distinct from the internal LINE/email channels.
+
+- **Trigger:** a `SendWhatsAppModal` popup opens when a card moves to **in_transit** (board
+  drag `BoardClient`, and card-detail dispatch CTA / `StatusDropdown` via `CardDetailClient`),
+  and a manual **"Send WhatsApp"** button in `CommunicationPanel`. Nothing sends without the
+  user pressing Send.
+- **Route:** `GET/POST /api/cards/[id]/send-whatsapp` (`runtime='nodejs'`). GET returns
+  recipients (customers with a resolvable phone) + PDF attachments + `configured`. POST sends
+  the template per selected customer and logs each to `communication_events` (`channel:'whatsapp'`,
+  which is plain text — no enum). Assembly mirrors `sendStatusCustomerEmails`.
+- **7 template vars** (positional): customer_name, sale_orders (joined), destination,
+  delivery_method label, driver_name, driver_phone, estimated_arrival (`formatDate(planned_date)`).
+- **Phone:** no column on `delivery_customers`; resolved `coalesce(customer_directory.contact_number,
+  orders.customer_phone)` and normalized to E.164 (`normalizePhoneTH`, Thai-focused). No
+  WhatsApp opt-in flag — gated on "has a phone" + per-recipient checkboxes in the popup.
+- **PDF (mandatory, template has a document header):** popup defaults to **"Auto delivery
+  note"** — `src/lib/delivery-note-pdf.tsx` generates a per-customer PDF with `@react-pdf/renderer`,
+  uploads to `generated/<card_id>/...` in the `delivery-attachments` bucket, and hands WhatsApp
+  a 24h `createSignedUrl`. A manually-picked custom PDF attachment is sent to all instead.
+- **Env:** `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN` (permanent System User token),
+  optional `WHATSAPP_API_VERSION` (default `v21.0`), `WHATSAPP_TEMPLATE_ON_THE_WAY`
+  (default `delivery_on_the_way`), `WHATSAPP_TEMPLATE_LANG` (default `en`). Missing creds ->
+  logged `skipped` ("not configured"), never a fake success; the popup shows a setup banner.
+  Real customer sends also require the Meta app to be **Live** + business-verified.
+  See the `reference_tkp_whatsapp` memory for Meta account/app/number details.
+
 ## Delivery Methods
 
 Cards support four delivery methods (`delivery_method` column, enum `delivery_method_type`):

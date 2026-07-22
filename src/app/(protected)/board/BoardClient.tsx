@@ -6,6 +6,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { useDebouncedCallback } from '@/lib/useDebouncedCallback';
 import KanbanColumn from '@/components/board/KanbanColumn';
 import CreateCardModal from '@/components/board/CreateCardModal';
+import SendWhatsAppModal from '@/components/cards/SendWhatsAppModal';
 import Button from '@/components/ui/Button';
 import { Plus, RefreshCw, AlertTriangle, Truck, Search, X, FileSpreadsheet } from 'lucide-react';
 import type { DeliveryCardWithCustomers, DeliveryStatus } from '@/types';
@@ -22,6 +23,7 @@ interface BoardClientProps {
 export default function BoardClient({ initialCards }: BoardClientProps) {
   const [cards, setCards] = useState<DeliveryCardWithCustomers[]>(initialCards);
   const [createOpen, setCreateOpen] = useState(false);
+  const [whatsappCardId, setWhatsappCardId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [mobileFilter, setMobileFilter] = useState<DeliveryStatus | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -70,7 +72,8 @@ export default function BoardClient({ initialCards }: BoardClientProps) {
         });
         if (!res.ok) throw new Error('Failed to update status');
         if (newStatus === 'in_transit') {
-          addToast('Card in transit — open it to mark as delivered when done', 'success');
+          addToast('Card in transit. Open it to mark as delivered when done', 'success');
+          setWhatsappCardId(draggableId);
         } else {
           addToast(`Card moved to ${statusLabel(newStatus)}`, 'success');
         }
@@ -94,7 +97,8 @@ export default function BoardClient({ initialCards }: BoardClientProps) {
       });
       if (!res.ok) throw new Error();
       if (newStatus === 'in_transit') {
-        addToast('Card in transit — open it to mark as delivered when done', 'success');
+        addToast('Card in transit. Open it to mark as delivered when done', 'success');
+        setWhatsappCardId(cardId);
       } else {
         addToast('Status updated', 'success');
       }
@@ -285,6 +289,13 @@ export default function BoardClient({ initialCards }: BoardClientProps) {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onCreated={refresh}
+      />
+
+      <SendWhatsAppModal
+        open={!!whatsappCardId}
+        cardId={whatsappCardId}
+        source="transit"
+        onClose={() => setWhatsappCardId(null)}
       />
     </div>
   );

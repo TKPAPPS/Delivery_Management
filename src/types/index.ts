@@ -7,7 +7,7 @@ export type DeliveryMethod = 'car' | 'post' | 'air' | 'other';
 export type DeliveryType = 'our_motorcycle' | 'company_motorcycle';
 export type DeliveryPriority = 'normal' | 'urgent';
 export type NotificationStatus = 'pending' | 'sent' | 'failed' | 'skipped';
-export type CommChannel = 'line' | 'email';
+export type CommChannel = 'line' | 'email' | 'whatsapp';
 export type CommStatus = 'sent' | 'failed' | 'skipped';
 
 export interface Profile {

@@ -15,6 +15,7 @@ import AddCustomerForm from '@/components/cards/AddCustomerForm';
 import CommentThread from '@/components/cards/CommentThread';
 import ActivityLogSection from '@/components/cards/ActivityLogSection';
 import AttachmentSection from '@/components/cards/AttachmentSection';
+import SendWhatsAppModal from '@/components/cards/SendWhatsAppModal';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useToastStore } from '@/store/toastStore';
 import { formatDate, statusColor, statusLabel } from '@/lib/utils';
@@ -41,6 +42,9 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
   const [showDeliveredForm, setShowDeliveredForm] = useState(false);
   const [deliveryNotes, setDeliveryNotes] = useState('');
   const [markingInTransit, setMarkingInTransit] = useState(false);
+  const [whatsappOpen, setWhatsappOpen] = useState(false);
+  const [whatsappSource, setWhatsappSource] = useState<'manual' | 'transit'>('manual');
+  const openWhatsApp = (source: 'manual' | 'transit') => { setWhatsappSource(source); setWhatsappOpen(true); };
 
   // Edit mode state
   const [editing, setEditing] = useState(false);
@@ -77,6 +81,7 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
 
   const handleStatusChange = (status: DeliveryStatus) => {
     setCard((c) => ({ ...c, status }));
+    if (status === 'in_transit') openWhatsApp('transit');
   };
 
   const handleCardUpdated = (data: Partial<DeliveryCard>) => {
@@ -129,8 +134,9 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
         body: JSON.stringify({ status: 'in_transit' }),
       });
       if (!res.ok) throw new Error('Failed to dispatch');
-      addToast("Vehicle dispatched — customers with email on file are notified with the driver's details", 'success');
+      addToast("Vehicle dispatched. Customers with email on file are notified with the driver's details", 'success');
       await refresh();
+      openWhatsApp('transit');
     } catch {
       addToast('Failed to mark as out for delivery', 'error');
     } finally {
@@ -528,7 +534,7 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
 
       {/* Communications */}
       <div className="mb-6">
-        <CommunicationPanel card={card} customers={card.customers} />
+        <CommunicationPanel card={card} customers={card.customers} onOpenWhatsApp={() => openWhatsApp('manual')} />
       </div>
 
       {/* Activity Log */}
@@ -544,6 +550,13 @@ export default function CardDetailClient({ card: initialCard, drivers, activeCar
         message="Use Archive for cancelled or abandoned deliveries. For completed deliveries, use 'Mark as Delivered' instead. Archive will hide this card from the board and move it to History."
         confirmLabel="Archive (Abandon)"
         loading={archiving}
+      />
+
+      <SendWhatsAppModal
+        open={whatsappOpen}
+        cardId={card.id}
+        source={whatsappSource}
+        onClose={() => setWhatsappOpen(false)}
       />
     </div>
   );

@@ -5,13 +5,14 @@ import type { CommunicationEvent, LineGroup, DeliveryCard, CustomerWithRelations
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import Select from '@/components/ui/Select';
-import { MessageSquare, Mail, Send, FileText, CheckCircle, XCircle, MinusCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { MessageSquare, Mail, Send, FileText, CheckCircle, XCircle, MinusCircle, ChevronDown, ChevronUp, MessageCircle } from 'lucide-react';
 import { useToastStore } from '@/store/toastStore';
 import { formatDate, formatDateTime } from '@/lib/utils';
 
 interface CommunicationPanelProps {
   card: DeliveryCard;
   customers: CustomerWithRelations[];
+  onOpenWhatsApp?: () => void;
 }
 
 const STATUS_ICON = {
@@ -20,7 +21,7 @@ const STATUS_ICON = {
   skipped: <MinusCircle className="w-3.5 h-3.5 text-slate-400" />,
 };
 
-export default function CommunicationPanel({ card, customers }: CommunicationPanelProps) {
+export default function CommunicationPanel({ card, customers, onOpenWhatsApp }: CommunicationPanelProps) {
   const addToast = useToastStore((s) => s.addToast);
   const [events, setEvents] = useState<CommunicationEvent[]>([]);
   const [lineGroups, setLineGroups] = useState<LineGroup[]>([]);
@@ -196,6 +197,11 @@ export default function CommunicationPanel({ card, customers }: CommunicationPan
         <Button variant="outline" size="sm" onClick={openSummary} className="flex-1 min-w-[120px]">
           <FileText className="w-3.5 h-3.5" /> Email Summary
         </Button>
+        {onOpenWhatsApp && (
+          <Button variant="outline" size="sm" onClick={onOpenWhatsApp} className="flex-1 min-w-[120px]">
+            <MessageCircle className="w-3.5 h-3.5" /> Send WhatsApp
+          </Button>
+        )}
       </div>
 
       {showLog && (
