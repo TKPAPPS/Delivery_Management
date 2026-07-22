@@ -25,12 +25,14 @@ export default function SendWhatsAppModal({ open, cardId, onClose, onDone, sourc
   const [pdfs, setPdfs] = useState<Pdf[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pdfChoice, setPdfChoice] = useState('auto');
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
     if (!open || !cardId) return;
     setLoading(true);
     setPdfChoice('auto');
+    setUploadFile(null);
     (async () => {
       try {
         const res = await fetch(`/api/cards/${cardId}/send-whatsapp`);
@@ -57,12 +59,26 @@ export default function SendWhatsAppModal({ open, cardId, onClose, onDone, sourc
 
   const handleSend = async () => {
     if (!cardId || selected.size === 0) { addToast('Select at least one recipient', 'error'); return; }
+    if (pdfChoice === 'upload' && !uploadFile) { addToast('Choose a PDF to upload', 'error'); return; }
     setSending(true);
     try {
+      // Uploading a PDF: store it as a card attachment first, then send that attachment.
+      let pdfToSend = pdfChoice;
+      if (pdfChoice === 'upload' && uploadFile) {
+        const fd = new FormData();
+        fd.append('file', uploadFile);
+        const up = await fetch(`/api/cards/${cardId}/attachments`, { method: 'POST', body: fd });
+        if (!up.ok) {
+          const e = await up.json().catch(() => ({}));
+          throw new Error(e.error || 'Upload failed');
+        }
+        const upData = await up.json();
+        pdfToSend = upData.attachment.id;
+      }
       const res = await fetch(`/api/cards/${cardId}/send-whatsapp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customer_ids: Array.from(selected), pdf: pdfChoice, source }),
+        body: JSON.stringify({ customer_ids: Array.from(selected), pdf: pdfToSend, source }),
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
@@ -135,6 +151,28 @@ export default function SendWhatsAppModal({ open, cardId, onClose, onDone, sourc
                 <input type="radio" name="wapdf" checked={pdfChoice === 'auto'} onChange={() => setPdfChoice('auto')} />
                 <span><span className="font-medium text-slate-800">Auto delivery note</span><span className="text-xs text-slate-500"> · generated per customer</span></span>
               </label>
+
+              <label className={cn('flex items-center gap-2.5 px-2.5 py-2 border rounded-lg text-sm cursor-pointer',
+                pdfChoice === 'upload' ? 'border-crimson-400 bg-crimson-50' : 'border-slate-200 hover:bg-slate-50')}>
+                <input type="radio" name="wapdf" checked={pdfChoice === 'upload'} onChange={() => setPdfChoice('upload')} />
+                <span className="flex-1 min-w-0">
+                  <span className="font-medium text-slate-800">Upload a PDF</span>
+                  {uploadFile && <span className="text-xs text-slate-500 block truncate">{uploadFile.name}</span>}
+                </span>
+              </label>
+              {pdfChoice === 'upload' && (
+                <input
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] ?? null;
+                    if (file && file.type !== 'application/pdf') { addToast('Please choose a PDF file', 'error'); return; }
+                    setUploadFile(file);
+                  }}
+                  className="block w-full text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-crimson-50 file:text-crimson-700 file:text-xs file:font-medium hover:file:bg-crimson-100"
+                />
+              )}
+
               {pdfs.map((p) => (
                 <label key={p.id} className={cn('flex items-center gap-2.5 px-2.5 py-2 border rounded-lg text-sm cursor-pointer',
                   pdfChoice === p.id ? 'border-crimson-400 bg-crimson-50' : 'border-slate-200 hover:bg-slate-50')}>
@@ -147,7 +185,7 @@ export default function SendWhatsAppModal({ open, cardId, onClose, onDone, sourc
 
           <div className="flex gap-3 justify-end pt-2">
             <Button variant="secondary" onClick={onClose} disabled={sending}>Cancel</Button>
-            <Button onClick={handleSend} loading={sending} disabled={!configured || selected.size === 0}>
+            <Button onClick={handleSend} loading={sending} disabled={!configured || selected.size === 0 || (pdfChoice === 'upload' && !uploadFile)}>
               Send to {selected.size || 0}
             </Button>
           </div>
